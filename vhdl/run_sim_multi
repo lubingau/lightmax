@@ -1,0 +1,29 @@
+#!/bin/bash
+set -e
+cd "$(dirname "$0")"
+
+L=${1:-4}
+
+rm -f work-obj93.cf *.o sim/sim_output_multi.txt sim/sim_input_multi.txt sim/sim_output_L*.txt
+
+ghdl -a --std=02 -frelaxed rtl/exp_lut.vhd \
+                     rtl/dual_exp_lut.vhd \
+                     rtl/k_lut.vhd \
+                     rtl/s_lut.vhd \
+                     rtl/input_buffer.vhd \
+                     rtl/lightmax_core.vhd \
+                     rtl/lightmax.vhd \
+                     rtl/lightmax_wrapper.vhd \
+                     rtl/dual_lightmax.vhd \
+                     rtl/multi_lightmax_wrapper.vhd \
+                     rtl/axis_wrapper_multi.vhd \
+                     tb/tb_multi_lightmax.vhd \
+                     tb/tb_run_L${L}.vhd
+
+ghdl -e --std=02 -frelaxed Tb_Run_L${L}
+
+ghdl -r --std=02 -frelaxed Tb_Run_L${L} --vcd=sim/output_L${L}.vcd --stop-time=10us
+
+cp sim/sim_output_multi.txt sim/sim_output_L${L}.txt
+
+/home/lubin/anaconda3/envs/DEE/bin/python3 analyze_results.py --lanes $L

@@ -1,0 +1,21 @@
+#!/bin/bash
+set -e
+cd "$(dirname "$0")"
+
+rm -f work-obj93.cf *.o
+
+ghdl -a --std=02 -frelaxed rtl/exp_lut.vhd \
+                     rtl/k_lut.vhd \
+                     rtl/s_lut.vhd \
+                     rtl/input_buffer.vhd \
+                     rtl/lightmax_core.vhd \
+                     rtl/lightmax.vhd \
+                     rtl/lightmax_wrapper.vhd \
+                     rtl/axis_wrapper.vhd \
+                     tb/tb_lightmax.vhd
+
+ghdl -e --std=02 -frelaxed Tb_Lightmax
+
+ghdl -r --std=02 -frelaxed Tb_Lightmax --vcd=sim/output.vcd --stop-time=10us
+
+/home/lubin/anaconda3/envs/DEE/bin/python3 analyze_results.py
