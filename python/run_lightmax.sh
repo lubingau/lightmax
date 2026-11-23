@@ -4,7 +4,7 @@ set -e
 # ------------------------------------------------------------------
 # Run all tasks with LightMax for a single
 # representative saturation value.
-# Usage:  ./run_lightmax.sh  [--dry-run] [--saturation N] [--in-bw N] [--out-bw N]
+# Usage:  ./run_lightmax.sh  [--dry-run] [--num-samples N] [--saturation N] [--in-bw N] [--out-bw N]
 #         [--k-bits N] [--s-bits N] [--csv-name STR]
 # ------------------------------------------------------------------
 
@@ -21,6 +21,7 @@ DRY=
 while [ $# -gt 0 ]; do
     case "$1" in
         --dry-run) DRY=echo; shift ;;
+        --num-samples) NUM_SAMPLES="$2"; shift 2 ;;
         --saturation) SATURATION="$2"; shift 2 ;;
         --in-bw) IN_BW="$2"; shift 2 ;;
         --out-bw) OUT_BW="$2"; shift 2 ;;
