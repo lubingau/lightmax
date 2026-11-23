@@ -27,14 +27,14 @@ parser.add_argument("--output-dir", type=str, default="figures",
                     help="Directory for output files")
 parser.add_argument("--output", type=str, default="comparison_all.tex",
                     help="Output LaTeX filename (default: comparison_all.tex)")
-parser.add_argument("--ceiling", type=float, default=16.0,
-                    help="Saturation ceiling filter (default: 16.0)")
+parser.add_argument("--ceiling", type=float, default=24.0,
+                    help="Saturation ceiling filter (default: 24.0)")
 parser.add_argument("--in-bw", type=int, default=8,
                     help="Input bandwidth filter (default: 8)")
 parser.add_argument("--out-bw", type=int, default=8,
                     help="Output bandwidth filter (default: 8)")
 parser.add_argument("--k-bits", type=int, default=4,
-                    help="K bits filter (default: 6)")
+                    help="K bits filter (default: 4)")
 parser.add_argument("--s-bits", type=int, default=6,
                     help="S bits filter (default: 6)")
 parser.add_argument("--small-tables", action="store_true", default=False,
