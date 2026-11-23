@@ -1,0 +1,17 @@
+model,ceiling,softmax_type,in_bw,out_bw,k_bits,s_bits,CE,PPL,Top1,KL
+answerdotai/ModernBERT-base,,original,,,,,2.048149,7.7535,58.95,0.000000
+answerdotai/ModernBERT-base,4.0,original,,,,,5.562093,260.3672,14.62,4.522638
+answerdotai/ModernBERT-base,8.0,original,,,,,6.561295,707.1869,21.32,3.602837
+answerdotai/ModernBERT-base,12.0,original,,,,,11.835407,138054.8931,3.23,8.774638
+answerdotai/ModernBERT-base,16.0,original,,,,,2.284518,9.8209,57.80,0.142804
+answerdotai/ModernBERT-base,24.0,original,,,,,2.048482,7.7561,58.95,0.000069
+answerdotai/ModernBERT-base,32.0,original,,,,,2.048208,7.7540,58.82,0.000023
+answerdotai/ModernBERT-base,64.0,original,,,,,2.048108,7.7532,58.99,0.000001
+answerdotai/ModernBERT-large,,original,,,,,1.687127,5.4039,64.22,0.000000
+answerdotai/ModernBERT-large,4.0,original,,,,,5.862400,351.5669,11.85,4.419897
+answerdotai/ModernBERT-large,8.0,original,,,,,10.064284,23488.9078,6.37,12.320338
+answerdotai/ModernBERT-large,12.0,original,,,,,1.743721,5.7186,63.52,0.022982
+answerdotai/ModernBERT-large,16.0,original,,,,,1.688287,5.4102,64.42,0.000351
+answerdotai/ModernBERT-large,24.0,original,,,,,1.686986,5.4032,64.30,0.000002
+answerdotai/ModernBERT-large,32.0,original,,,,,1.687127,5.4039,64.22,0.000000
+answerdotai/ModernBERT-large,64.0,original,,,,,1.687127,5.4039,64.22,0.000000
