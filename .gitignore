@@ -1,0 +1,11 @@
+# global
+*.directory
+.vscode/
+
+# python/
+python/__pycache__/
+
+# vhdl/
+vhdl/__pycache__/
+vhdl/work-obj93.cf
+vhdl/sim/*.png
