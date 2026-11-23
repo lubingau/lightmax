@@ -74,10 +74,10 @@ _NAME_MAP = {
 }
 
 _TASK_CONFIG = {
-    "eval_classification": ("Classification", "top1"),
-    "eval_forecasting":   ("Forecasting",   "MSE"),
-    "eval_llm":           ("LLM",           "Top1"),
-    "eval_audio":         ("Audio",         "WER"),
+    "eval_image":       ("Classification", "top1"),
+    "eval_time_series": ("Forecasting",    "MSE"),
+    "eval_language":    ("LLM",            "Top1"),
+    "eval_speech":      ("Audio",          "WER"),
 }
 
 
