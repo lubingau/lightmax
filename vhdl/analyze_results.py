@@ -157,8 +157,8 @@ def analyze_single(sim_dir: str) -> None:
 
     ref_out = compute_reference(inputs[:len(outputs)])
     print_comparison(inputs[:len(outputs)], outputs, ref_out)
-    plot_results(inputs[:len(outputs)], outputs, ref_out,
-                 os.path.join(sim_dir, "softmax_plot.png"))
+    # plot_results(inputs[:len(outputs)], outputs, ref_out,
+    #              os.path.join(sim_dir, "softmax_plot.png"))
 
 
 def generate_lane_inputs(num_values: int, lane_count: int) -> list[np.ndarray]:
@@ -229,8 +229,8 @@ def analyze_lanes(sim_dir: str, lane_count: int) -> None:
         hw = outputs[i]
         print(f"\n======== {label} ========")
         print_comparison(inp, hw, ref)
-        plot_results(inp, hw, ref,
-                     os.path.join(sim_dir, f"softmax_plot_{label}.png"))
+        # plot_results(inp, hw, ref,
+        #              os.path.join(sim_dir, f"softmax_plot_{label}.png"))
 
 
 # ----------------- Main function -----------------
