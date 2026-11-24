@@ -36,7 +36,7 @@ parser.add_argument("--out-bw", type=int, default=8)
 parser.add_argument("--k-bits", type=int, default=4)
 parser.add_argument("--s-bits", type=int, default=6)
 parser.add_argument("--batch-size", type=int, default=64)
-parser.add_argument("--num-samples", type=int, default=0,
+parser.add_argument("--num-samples", type=int, default=10000,
                     help="0 = all samples")
 parser.add_argument("--device", type=str, default="cuda")
 parser.add_argument("--seed", type=int, default=42)
