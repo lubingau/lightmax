@@ -9,4 +9,6 @@ python/__pycache__/
 vhdl/__pycache__/
 vhdl/work-obj93.cf
 vhdl/sim/*.png
+vhdl/sim/*.vcd
+vhdl/sim/*.txt
 vhdl/DESCRIPTION.md

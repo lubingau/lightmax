@@ -1,8 +1,0 @@
-415 ns  out[0] = 105
-425 ns  out[1] = 23
-435 ns  out[2] = 5
-445 ns  out[3] = 1
-455 ns  out[4] = 0
-465 ns  out[5] = 0
-475 ns  out[6] = 0
-485 ns  out[7] = 0
