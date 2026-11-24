@@ -37,13 +37,13 @@
 Change `4` to the number of units you want to simulate in parallel. Must be even.
 
 ### With real data
-We provide a python script that extrcat real logits from attention matrix of ViT-B ImageNet-1k val dataset and feed them to the LightMax core for simulation. Default vector is first layer, first head, first row of the attention matrix.
+We provide a Python script that extracts real logits from the attention matrix of the ViT-B ImageNet-1k validation dataset and feeds them to the LightMax core for simulation. The default vector is the first layer, first head, first row of the attention matrix.
 
 ```bash
 python run_sim_real.py
 ```
 
-Random while select random layer, head and row.
+Use `--random` to select a random layer, head and row.
 ```bash
 python run_sim_real.py --random
 ```
