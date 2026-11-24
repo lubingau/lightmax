@@ -14,85 +14,44 @@
 ```
 .
 ├── rtl/
-│   ├── exp_lut.vhd               # Exponential LUT (128×7-bit BRAM ROM)
-│   ├── k_lut.vhd                 # k·ln(2) LUT (64×9-bit signed, LUT6)
-│   ├── s_lut.vhd                 # ln(1+s) LUT (64×2-bit unsigned, LUT6)
-│   ├── input_buffer.vhd          # Dual-port input buffer BRAM
-│   ├── lightmax.vhd           # Core LightMax softmax FSM + combinatorial LOD
-│   └── axis_wrapper.vhd          # AXI4-Stream wrapper
 ├── tb/
 │   └── tb_lightmax.vhd        # Testbench (random stimulus)
 ├── sim/                          # Simulation outputs (auto‑generated)
-│   ├── output.vcd                # Waveform dump (view with GTKWave)
-│   ├── sim_input.txt             # Injected random values
-│   ├── sim_output.txt            # Captured hardware output
-│   └── softmax_plot.png          # Comparison plot
 ├── analyze_results.py            # Plot & compare with numpy reference
 └── README.md                     # This file
 ```
 
-## Step-by-step
+## Compilation and simulation
 
-### 1. Compile all sources
+### Single Unit
 
 ```bash
-cd /home/lubin/Projects/quantization/lightmax_hardware
-
-ghdl -a --std=02 -frelaxed rtl/exp_lut.vhd
-ghdl -a --std=02 -frelaxed rtl/k_lut.vhd
-ghdl -a --std=02 -frelaxed rtl/s_lut.vhd
-ghdl -a --std=02 -frelaxed rtl/input_buffer.vhd
-ghdl -a --std=02 -frelaxed rtl/lightmax.vhd
-ghdl -a --std=02 -frelaxed rtl/axis_wrapper.vhd
-ghdl -a --std=02 -frelaxed tb/tb_lightmax.vhd
+./run_sim
 ```
 
-### 2. Elaborate the testbench
+### Multiple Units
 
 ```bash
-ghdl -e --std=02 -frelaxed Tb_Lightmax
+./run_sim 4
+```
+Change `4` to the number of units you want to simulate in parallel. Must be even.
+
+### With real data
+We provide a python script that extrcat real logits from attention matrix of ViT-B ImageNet-1k val dataset and feed them to the LightMax core for simulation. Default vector is first layer, first head, first row of the attention matrix.
+
+```bash
+python run_sim_real.py
 ```
 
-### 3. Run the simulation
-
+Random while select random layer, head and row.
 ```bash
-ghdl -r --std=02 -frelaxed Tb_Lightmax --vcd=sim/output.vcd --stop-time=10us
+python run_sim_real.py --random
 ```
 
-This produces inside `sim/`:
-- `output.vcd` — waveform dump (viewable with GTKWave)
-- `sim_input.txt` — injected random values
-- `sim_output.txt` — captured hardware output
-
-### 4. View waveforms (optional)
+For multi parallel units, you can specify the number of units as an argument:
 
 ```bash
-gtkwave sim/output.vcd
-```
-
-### 5. Analyze and plot results
-
-```bash
-python3 analyze_results.py
-```
-
-This prints a per-sample comparison table and saves `sim/softmax_plot.png`.
-
-### One-liner (compile → simulate → analyze)
-
-```bash
-cd /home/lubin/Projects/quantization/lightmax_hardware && \
-ghdl -a --std=02 -frelaxed rtl/exp_lut.vhd rtl/k_lut.vhd rtl/s_lut.vhd rtl/input_buffer.vhd rtl/lightmax.vhd rtl/axis_wrapper.vhd tb/tb_lightmax.vhd && \
-ghdl -e --std=02 -frelaxed Tb_Lightmax && \
-ghdl -r --std=02 -frelaxed Tb_Lightmax --vcd=sim/output.vcd --stop-time=10us && \
-python3 analyze_results.py
-```
-
-## Clean up compiled and simulation artifacts
-
-```bash
-rm -f work-obj93.cf *.o
-rm -f sim/output.vcd sim/sim_input.txt sim/sim_output.txt sim/softmax_plot.png
+python run_sim_real.py --multi 4
 ```
 
 ## Notes
