@@ -46,7 +46,7 @@ def main():
     parser.add_argument("--s-bits", type=int, default=6)
     parser.add_argument("--device", type=str, default="cuda")
     # Simulation
-    parser.add_argument("--multi", type=int, default=1, help="Number of parallel lanes (even, >=2 for multi-lane)")
+    parser.add_argument("--multi", type=int, default=1, help="Number of parallel units (even, >=2 for multi-unit)")
     parser.add_argument("--random", action="store_true", default=False, help="Pick random layer/query/head indices each run")
     parser.add_argument("--clean", action="store_true", default=False, help="Recompile all VHDL files")
 
@@ -148,7 +148,7 @@ def main():
         f"--stop-time={stop_time}",
     ]
     if is_multi:
-        run_cmd.insert(9, f"-gLANE_COUNT={args.multi}")
+        run_cmd.insert(9, f"-gPARALLEL_COUNT={args.multi}")
 
     print(f"  {' '.join(run_cmd)}", flush=True)
     t0 = time.time()
@@ -168,7 +168,7 @@ def main():
         f"--s-bits={args.s_bits}",
     ]
     if is_multi:
-        sys.argv.append(f"--lanes={args.multi}")
+        sys.argv.append(f"--units={args.multi}")
     import analyze_results
     analyze_results.main()
 

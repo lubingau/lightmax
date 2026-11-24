@@ -6,7 +6,7 @@ entity MultiLightmaxWrapper is
     generic (
         MAX_DEPTH       : integer := 257;
         DATA_INPUT      : integer := 8;
-        LANE_COUNT      : integer := 2;
+        PARALLEL_COUNT      : integer := 2;
         EXP_LUT_BITS    : integer := 7;
         K_LUT_IN_BITS   : integer := 4;
         S_LUT_IN_BITS   : integer := 6;
@@ -18,17 +18,17 @@ entity MultiLightmaxWrapper is
         rst_n       : in std_logic;
         in_valid    : in std_logic;
         in_ready    : out std_logic;
-        in_data     : in std_logic_vector(LANE_COUNT*DATA_INPUT-1 downto 0);
+        in_data     : in std_logic_vector(PARALLEL_COUNT*DATA_INPUT-1 downto 0);
         out_valid   : out std_logic;
         out_ready   : in std_logic;
-        out_data    : out std_logic_vector(LANE_COUNT*DATA_INPUT-1 downto 0)
+        out_data    : out std_logic_vector(PARALLEL_COUNT*DATA_INPUT-1 downto 0)
     );
 end MultiLightmaxWrapper;
 
 architecture Structural of MultiLightmaxWrapper is
 
-    constant DUAL_COUNT     : integer := LANE_COUNT / 2;
-    constant DATA_BUS_WIDTH : integer := LANE_COUNT * DATA_INPUT;
+    constant DUAL_COUNT     : integer := PARALLEL_COUNT / 2;
+    constant DATA_BUS_WIDTH : integer := PARALLEL_COUNT * DATA_INPUT;
 
     signal buf_in_a_wide  : unsigned(DATA_BUS_WIDTH-1 downto 0);
     signal buf_out_a_wide : unsigned(DATA_BUS_WIDTH-1 downto 0);

@@ -2,9 +2,9 @@
 set -e
 cd "$(dirname "$0")"
 
-L=${1:-4}
+P=${1:-4}
 
-rm -f work-obj93.cf *.o sim/sim_output_multi.txt sim/sim_input_multi.txt sim/sim_output_L*.txt
+rm -f work-obj93.cf *.o sim/sim_output_multi.txt sim/sim_input_multi.txt sim/sim_output_P*.txt
 
 ghdl -a --std=02 -frelaxed rtl/exp_lut.vhd \
                      rtl/dual_exp_lut.vhd \
@@ -18,12 +18,12 @@ ghdl -a --std=02 -frelaxed rtl/exp_lut.vhd \
                      rtl/multi_lightmax_wrapper.vhd \
                      rtl/axis_wrapper_multi.vhd \
                      tb/tb_multi_lightmax.vhd \
-                     tb/tb_run_L${L}.vhd
+                     tb/tb_run_P${P}.vhd
 
-ghdl -e --std=02 -frelaxed Tb_Run_L${L}
+ghdl -e --std=02 -frelaxed Tb_Run_P${P}
 
-ghdl -r --std=02 -frelaxed Tb_Run_L${L} --vcd=sim/output_L${L}.vcd --stop-time=10us
+ghdl -r --std=02 -frelaxed Tb_Run_P${P} --vcd=sim/output_P${P}.vcd --stop-time=10us
 
-cp sim/sim_output_multi.txt sim/sim_output_L${L}.txt
+cp sim/sim_output_multi.txt sim/sim_output_P${P}.txt
 
-/home/lubin/anaconda3/envs/DEE/bin/python3 analyze_results.py --lanes $L
+/home/lubin/anaconda3/envs/DEE/bin/python3 analyze_results.py --units $P

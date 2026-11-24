@@ -5,7 +5,7 @@ use std.textio.all;
 
 entity Tb_Lightmax_Multi_File is
     generic (
-        LANE_COUNT      : integer := 2;
+        PARALLEL_COUNT      : integer := 2;
         NUM_VALUES      : integer := 8;
         EXP_LUT_BITS    : integer := 7;
         K_LUT_IN_BITS   : integer := 4;
@@ -19,10 +19,10 @@ architecture Sim of Tb_Lightmax_Multi_File is
 
     constant CLK_PERIOD  : time := 10 ns;
     constant DATA_INPUT  : integer := 8;
-    constant DATA_WIDTH  : integer := LANE_COUNT * DATA_INPUT;
+    constant DATA_WIDTH  : integer := PARALLEL_COUNT * DATA_INPUT;
     constant MAX_DEPTH   : integer := NUM_VALUES + 1;
 
-    type t_int_array is array (0 to LANE_COUNT-1) of integer;
+    type t_int_array is array (0 to PARALLEL_COUNT-1) of integer;
 
     signal clk           : std_logic := '0';
     signal rst_n         : std_logic := '0';
@@ -50,7 +50,7 @@ begin
         generic map (
             MAX_DEPTH       => MAX_DEPTH,
             DATA_INPUT      => DATA_INPUT,
-            LANE_COUNT      => LANE_COUNT,
+            PARALLEL_COUNT      => PARALLEL_COUNT,
             EXP_LUT_BITS    => EXP_LUT_BITS,
             K_LUT_IN_BITS   => K_LUT_IN_BITS,
             S_LUT_IN_BITS   => S_LUT_IN_BITS,
@@ -81,7 +81,7 @@ begin
                 if m_axis_tvalid = '1' and m_axis_tready = '1' then
                     if capture_count < NUM_VALUES then
                         write(line_out, now);
-                        for i in 0 to LANE_COUNT-1 loop
+                        for i in 0 to PARALLEL_COUNT-1 loop
                             write(line_out, string'("  "));
                             write(line_out, to_integer(unsigned(m_axis_tdata((i+1)*DATA_INPUT-1 downto i*DATA_INPUT))));
                         end loop;
@@ -116,7 +116,7 @@ begin
 
             read(line_in, idx);
 
-            for i in 0 to LANE_COUNT-1 loop
+            for i in 0 to PARALLEL_COUNT-1 loop
                 read(line_in, val);
                 s_axis_tdata((i+1)*DATA_INPUT-1 downto i*DATA_INPUT)
                     <= std_logic_vector(to_signed(val, DATA_INPUT));

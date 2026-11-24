@@ -40,7 +40,7 @@ begin
         generic map (
             MAX_DEPTH    => MAX_DEPTH,
             DATA_INPUT   => 8,
-            LANE_COUNT   => 2
+            PARALLEL_COUNT   => 2
         )
         port map (
             clk           => clk,

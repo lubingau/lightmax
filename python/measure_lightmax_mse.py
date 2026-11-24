@@ -233,9 +233,9 @@ def capture_and_export_logits(
     bits, and writes to output_path.
 
     When num_queries=1: writes 2-column sim_input.txt format (index, value).
-    When num_queries > 1: writes multi-column format (index, lane0, lane1, ...).
+    When num_queries > 1: writes multi-column format (index, unit0, unit1, ...).
 
-    Returns the number of logit values written per lane.
+    Returns the number of logit values written per parallel unit.
     """
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
 
@@ -332,7 +332,7 @@ def capture_and_export_logits(
             for i, val in enumerate(rows[0].tolist()):
                 f.write(f"{i}  {val}\n")
         else:
-            header = "index  " + "  ".join(f"lane{i}" for i in range(num_queries))
+            header = "index  " + "  ".join(f"unit{i}" for i in range(num_queries))
             f.write(header + "\n")
             n_keys = rows.shape[1]
             for j in range(n_keys):

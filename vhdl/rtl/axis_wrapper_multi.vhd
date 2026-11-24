@@ -1,6 +1,6 @@
 ----------------------------------------------------------------------------------
 -- AxisWrapperMulti
--- Wraps MultiLightmaxWrapper (L-lane) into a full AXI4-Stream.
+-- Wraps MultiLightmaxWrapper (P-unit) into a full AXI4-Stream.
 -- s_axis_tkeep is ignored (internally forced to '1').
 -- s_axis_tlast is not needed: end of input is detected by the core via
 --   the falling edge of in_valid.
@@ -17,7 +17,7 @@ entity AxisWrapperMulti is
     generic (
         MAX_DEPTH       : integer := 257;
         DATA_INPUT      : integer := 8;
-        LANE_COUNT      : integer := 2;
+        PARALLEL_COUNT      : integer := 2;
         EXP_LUT_BITS    : integer := 7;
         K_LUT_IN_BITS   : integer := 4;
         S_LUT_IN_BITS   : integer := 6;
@@ -29,14 +29,14 @@ entity AxisWrapperMulti is
         rst_n         : in  std_logic;
 
         s_axis_tvalid : in  std_logic;
-        s_axis_tdata  : in  std_logic_vector(LANE_COUNT*DATA_INPUT-1 downto 0);
-        s_axis_tkeep  : in  std_logic_vector((LANE_COUNT*DATA_INPUT+7)/8-1 downto 0);
+        s_axis_tdata  : in  std_logic_vector(PARALLEL_COUNT*DATA_INPUT-1 downto 0);
+        s_axis_tkeep  : in  std_logic_vector((PARALLEL_COUNT*DATA_INPUT+7)/8-1 downto 0);
         s_axis_tlast  : in  std_logic;
         s_axis_tready : out std_logic;
 
         m_axis_tvalid : out std_logic;
-        m_axis_tdata  : out std_logic_vector(LANE_COUNT*DATA_INPUT-1 downto 0);
-        m_axis_tkeep  : out std_logic_vector((LANE_COUNT*DATA_INPUT+7)/8-1 downto 0);
+        m_axis_tdata  : out std_logic_vector(PARALLEL_COUNT*DATA_INPUT-1 downto 0);
+        m_axis_tkeep  : out std_logic_vector((PARALLEL_COUNT*DATA_INPUT+7)/8-1 downto 0);
         m_axis_tlast  : out std_logic;
         m_axis_tready : in  std_logic
     );
@@ -44,7 +44,7 @@ end AxisWrapperMulti;
 
 architecture rtl of AxisWrapperMulti is
 
-    constant DATA_BUS_WIDTH : integer := LANE_COUNT * DATA_INPUT;
+    constant DATA_BUS_WIDTH : integer := PARALLEL_COUNT * DATA_INPUT;
 
     signal core_in_valid : std_logic;
     signal core_in_ready : std_logic;
@@ -67,7 +67,7 @@ begin
         generic map (
             MAX_DEPTH       => MAX_DEPTH,
             DATA_INPUT      => DATA_INPUT,
-            LANE_COUNT      => LANE_COUNT,
+            PARALLEL_COUNT      => PARALLEL_COUNT,
             EXP_LUT_BITS    => EXP_LUT_BITS,
             K_LUT_IN_BITS   => K_LUT_IN_BITS,
             S_LUT_IN_BITS   => S_LUT_IN_BITS,

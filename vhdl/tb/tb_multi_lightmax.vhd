@@ -5,7 +5,7 @@ use std.textio.all;
 
 entity Tb_MultiLightmax is
     generic (
-        LANE_COUNT : integer := 4;
+        PARALLEL_COUNT : integer := 4;
         NUM_VALUES : integer := 8
     );
 end Tb_MultiLightmax;
@@ -15,7 +15,7 @@ architecture Sim of Tb_MultiLightmax is
     constant CLK_PERIOD  : time := 10 ns;
     constant MAX_DEPTH   : integer := NUM_VALUES + 1;
     constant DATA_INPUT  : integer := 8;
-    constant DATA_WIDTH  : integer := LANE_COUNT * DATA_INPUT;
+    constant DATA_WIDTH  : integer := PARALLEL_COUNT * DATA_INPUT;
 
     type t_int_array is array (0 to NUM_VALUES-1) of integer;
 
@@ -43,7 +43,7 @@ begin
         generic map (
             MAX_DEPTH    => MAX_DEPTH,
             DATA_INPUT   => DATA_INPUT,
-            LANE_COUNT   => LANE_COUNT
+            PARALLEL_COUNT   => PARALLEL_COUNT
         )
         port map (
             clk           => clk,
@@ -69,7 +69,7 @@ begin
                 if m_axis_tvalid = '1' and m_axis_tready = '1' then
                     if capture_count < NUM_VALUES then
                         write(line_out, now);
-                        for i in 0 to LANE_COUNT-1 loop
+                        for i in 0 to PARALLEL_COUNT-1 loop
                             write(line_out, string'("  "));
                             write(line_out, to_integer(unsigned(m_axis_tdata((i+1)*DATA_INPUT-1 downto i*DATA_INPUT))));
                         end loop;
@@ -94,7 +94,7 @@ begin
         wait until rising_edge(clk);
 
         for j in 0 to NUM_VALUES-1 loop
-            for i in 0 to LANE_COUNT-1 loop
+            for i in 0 to PARALLEL_COUNT-1 loop
                 s_axis_tdata((i+1)*DATA_INPUT-1 downto i*DATA_INPUT)
                     <= std_logic_vector(to_signed((i + 1) * 12 - j * (8 - i), DATA_INPUT));
             end loop;

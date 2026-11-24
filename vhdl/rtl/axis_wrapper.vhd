@@ -1,6 +1,6 @@
 ----------------------------------------------------------------------------------
 -- AxisWrapper
--- Wraps LightmaxWrapper (single-lane) into a full AXI4-Stream.
+-- Wraps LightmaxWrapper (single-unit) into a full AXI4-Stream.
 -- s_axis_tkeep is ignored (internally forced to '1').
 -- s_axis_tlast is not needed: end of input is detected by the core via
 --   the falling edge of in_valid.

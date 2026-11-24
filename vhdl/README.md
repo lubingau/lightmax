@@ -14,10 +14,24 @@
 ```
 .
 ├── rtl/
+│   ├── lightmax_core.vhd         # Core datapath (LOD, log-domain computation)
+│   ├── exp_lut.vhd               # Decaying exponential LUT (BRAM)
+│   ├── k_lut.vhd                 # k·ln(2) LUT (LUT6 primitives)
+│   ├── s_lut.vhd                 # ln(1+s) LUT (LUT6 primitives)
+│   ├── input_buffer.vhd          # Input storage for multi-unit
+│   ├── axis_wrapper.vhd          # Single-unit AXI4-Stream wrapper
+│   └── multi_lightmax_wrapper.vhd # P-unit parallel wrapper
 ├── tb/
-│   └── tb_lightmax.vhd        # Testbench (random stimulus)
+│   ├── tb_lightmax.vhd           # Single-unit testbench
+│   ├── tb_multi_lightmax.vhd     # Multi-unit testbench
+│   └── tb_run_P*.vhd             # Run testbenches for P = 2, 4, 8, 16, 32
 ├── sim/                          # Simulation outputs (auto‑generated)
 ├── analyze_results.py            # Plot & compare with numpy reference
+├── generate_vhdl_lut.py          # Generate LUT coefficient files
+├── open_sim                      # Open waveform viewer (GTKWave)
+├── run_sim                       # Single-unit simulation runner
+├── run_sim_multi                 # Multi-unit simulation runner
+├── run_sim_real.py               # Real-data simulation from ViT-B logits
 └── README.md                     # This file
 ```
 

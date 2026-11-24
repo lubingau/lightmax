@@ -16,7 +16,7 @@ from lightmax import LightMax
 
 # ---------------- Argument parser ----------------
 parser = argparse.ArgumentParser(description="Analyze LightMax simulation output")
-parser.add_argument("--lanes", type=int, default=1, help="Number of lanes (1, 2, 4, 8, 16, 32)")
+parser.add_argument("--units", type=int, default=1, help="Number of parallel units (1, 2, 4, 8, 16, 32)")
 parser.add_argument("--ceiling", type=float, default=24.0)
 parser.add_argument("--in-bw", type=int, default=8)
 parser.add_argument("--out-bw", type=int, default=8)
@@ -32,7 +32,7 @@ LM_S_BITS: int = 6
 
 
 def read_hw_output(path: str) -> np.ndarray:
-    """Read single-lane hardware output file (one value per line)."""
+    """Read single-unit hardware output file (one value per line)."""
     data = []
     with open(path) as f:
         for line in f:
@@ -46,7 +46,7 @@ def read_hw_output(path: str) -> np.ndarray:
 
 
 def read_hw_output_dual(path: str) -> tuple[np.ndarray, np.ndarray]:
-    """Read dual-lane hardware output file (two values per line).
+    """Read dual-unit hardware output file (two values per line).
 
     File format from testbench: (core_1_val, core_0_val).  Returns (core_0, core_1).
     """
@@ -78,8 +78,8 @@ def read_single_column(path: str, skip_header: bool = False) -> np.ndarray:
 
 
 def read_dual_input(path: str) -> tuple[np.ndarray, np.ndarray]:
-    """Read dual-lane input file with columns: index val0 val1."""
-    lane0, lane1 = [], []
+    """Read dual-unit input file with columns: index val0 val1."""
+    unit0, unit1 = [], []
     with open(path) as f:
         next(f)
         for line in f:
@@ -88,9 +88,9 @@ def read_dual_input(path: str) -> tuple[np.ndarray, np.ndarray]:
                 continue
             parts = line.split()
             if len(parts) >= 3:
-                lane0.append(int(parts[1]))
-                lane1.append(int(parts[2]))
-    return np.array(lane0, dtype=np.int32), np.array(lane1, dtype=np.int32)
+                unit0.append(int(parts[1]))
+                unit1.append(int(parts[2]))
+    return np.array(unit0, dtype=np.int32), np.array(unit1, dtype=np.int32)
 
 
 def compute_reference(inputs: np.ndarray) -> np.ndarray:
@@ -144,7 +144,7 @@ def plot_results(inputs: np.ndarray, hw_out: np.ndarray, ref_out: np.ndarray, sa
 
 
 def analyze_single(sim_dir: str) -> None:
-    """Analyze single-lane simulation results."""
+    """Analyze single-unit simulation results."""
     inp_path = os.path.join(sim_dir, "sim_input.txt")
     out_path = os.path.join(sim_dir, "sim_output.txt")
 
@@ -161,30 +161,30 @@ def analyze_single(sim_dir: str) -> None:
     #              os.path.join(sim_dir, "softmax_plot.png"))
 
 
-def generate_lane_inputs(num_values: int, lane_count: int) -> list[np.ndarray]:
+def generate_unit_inputs(num_values: int, unit_count: int) -> list[np.ndarray]:
     """Generate test inputs matching tb_multi_lightmax formula: (i+1)*12 - j*(8-i)."""
     return [np.array([(i + 1) * 12 - j * (8 - i) for j in range(num_values)], dtype=np.int32)
-            for i in range(lane_count)]
+            for i in range(unit_count)]
 
 
-def read_output_file(path: str, lane_count: int) -> list[np.ndarray]:
-    """Read an L-column output file (time then L values per line)."""
-    data = [[] for _ in range(lane_count)]
+def read_output_file(path: str, unit_count: int) -> list[np.ndarray]:
+    """Read a P-column output file (time then P values per line)."""
+    data = [[] for _ in range(unit_count)]
     with open(path) as f:
         for line in f:
             line = line.strip()
             if not line:
                 continue
             parts = line.split()
-            if len(parts) >= 2 + lane_count and parts[1] == 'ns':
-                for i in range(lane_count):
+            if len(parts) >= 2 + unit_count and parts[1] == 'ns':
+                for i in range(unit_count):
                     data[i].append(int(parts[2 + i]))
     return [np.array(d, dtype=np.int32) for d in data]
 
 
-def read_multi_input(path: str, lane_count: int) -> list[np.ndarray]:
+def read_multi_input(path: str, unit_count: int) -> list[np.ndarray]:
     """Read multi-column input file (header + data)."""
-    data = [[] for _ in range(lane_count)]
+    data = [[] for _ in range(unit_count)]
     with open(path) as f:
         next(f)
         for line in f:
@@ -192,23 +192,23 @@ def read_multi_input(path: str, lane_count: int) -> list[np.ndarray]:
             if not line:
                 continue
             parts = line.split()
-            if len(parts) >= 1 + lane_count:
-                for i in range(lane_count):
+            if len(parts) >= 1 + unit_count:
+                for i in range(unit_count):
                     data[i].append(int(parts[1 + i]))
     return [np.array(d, dtype=np.int32) for d in data]
 
 
-def analyze_lanes(sim_dir: str, lane_count: int) -> None:
-    """Analyze parallel simulation results for the given lane count.
+def analyze_units(sim_dir: str, unit_count: int) -> None:
+    """Analyze parallel simulation results for the given parallel count.
 
     Tries sim_input_multi.txt / sim_output_multi.txt first (real data path).
-    Falls back to sim_output_L{lane_count}.txt with synthetic inputs.
+    Falls back to sim_output_P{unit_count}.txt with synthetic inputs.
     """
     out_path_multi = os.path.join(sim_dir, "sim_output_multi.txt")
-    out_path_named = os.path.join(sim_dir, f"sim_output_L{lane_count}.txt")
+    out_path_named = os.path.join(sim_dir, f"sim_output_P{unit_count}.txt")
 
     out_path = out_path_multi if os.path.exists(out_path_multi) else out_path_named
-    outputs = read_output_file(out_path, lane_count)
+    outputs = read_output_file(out_path, unit_count)
 
     if len(outputs[0]) == 0:
         print(f"ERROR: no data read from {out_path}")
@@ -218,14 +218,14 @@ def analyze_lanes(sim_dir: str, lane_count: int) -> None:
 
     inp_path = os.path.join(sim_dir, "sim_input_multi.txt")
     if os.path.exists(inp_path):
-        inputs = read_multi_input(inp_path, lane_count)
+        inputs = read_multi_input(inp_path, unit_count)
     else:
-        inputs = generate_lane_inputs(num_values, lane_count)
+        inputs = generate_unit_inputs(num_values, unit_count)
 
-    for i in range(lane_count):
+    for i in range(unit_count):
         inp = inputs[i]
         ref = compute_reference(inp)
-        label = f"lane_{i}"
+        label = f"unit_{i}"
         hw = outputs[i]
         print(f"\n======== {label} ========")
         print_comparison(inp, hw, ref)
@@ -246,8 +246,8 @@ def main() -> None:
     base_dir = os.path.dirname(os.path.abspath(__file__))
     sim_dir = os.path.join(base_dir, "sim")
 
-    if args.lanes >= 2:
-        analyze_lanes(sim_dir, args.lanes)
+    if args.units >= 2:
+        analyze_units(sim_dir, args.units)
     else:
         analyze_single(sim_dir)
 
