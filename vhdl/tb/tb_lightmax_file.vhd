@@ -1,5 +1,5 @@
 ----------------------------------------------------------------------------------
--- Testbench for Lightmax via AxisWrapper — reads inputs from sim/sim_input.txt
+-- Testbench for Lightmax via AxisWrapper - reads inputs from sim/sim_input.txt
 --
 -- Replaces the hardcoded constant array in tb_lightmax.vhd with a textio file
 -- read, so real captured attention logits can be fed into the VHDL simulation.

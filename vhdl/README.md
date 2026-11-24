@@ -1,4 +1,4 @@
-# LightMax Hardware — Simulation Guide
+# LightMax Hardware - Simulation Guide
 
 ## Prerequisites
 
@@ -71,4 +71,4 @@ python run_sim_real.py --multi 4
 ## Notes
 
 - **`work-obj93.cf`** is GHDL's **library database file**. It is a text file created by `ghdl -a` in the working directory that maps every compiled entity/architecture to its corresponding `.o` object file. Deleting it forces a full recompile from scratch.
-- The `shared variable` warnings during compilation are harmless — they come from GHDL's strict VHDL‑2002 checking of the shared variables used in the BRAM inference templates.
+- The `shared variable` warnings during compilation are harmless, they come from GHDL's strict VHDL‑2002 checking of the shared variables used in the BRAM inference templates.
