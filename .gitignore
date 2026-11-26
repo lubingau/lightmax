@@ -1,16 +1,15 @@
 # global
 *.directory
 .vscode/
+*__pycache__*
 
 # python/
-python/__pycache__/
 python/datasets
 python/panda
 python/figures/*.png
 python/figures/*.pdf
 
 # vhdl/
-vhdl/__pycache__/
 vhdl/work-obj93.cf
 vhdl/sim/*.png
 vhdl/sim/*.vcd
