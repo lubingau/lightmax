@@ -1,6 +1,13 @@
-library IEEE;
-use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.NUMERIC_STD.ALL;
+--------------------------------------------------------------------------------
+-- Description: Core LightMax datapath: subtract max, index LUTs, compute log-sum, output.
+-- Type: Behavioral
+-- Author: Anonymous
+-- License: MIT
+--------------------------------------------------------------------------------
+
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 
 entity LightmaxCore is
     generic (
@@ -12,7 +19,7 @@ entity LightmaxCore is
         K_LUT_OUT_BITS  : integer := 6;
         S_LUT_OUT_BITS  : integer := 3
     );
-    Port (
+    port (
         clk         : in std_logic;
         rst_n       : in std_logic;
         in_valid    : in std_logic;

@@ -1,11 +1,9 @@
-----------------------------------------------------------------------------------
--- Testbench for Lightmax via AxisWrapper
--- Injects random data via AXI4-Stream slave, captures softmax output,
--- and logs results to sim_output.txt for Python analysis.
---
--- Input transaction ends when s_axis_tvalid falls (no tlast).
--- The wrapper generates tlast on the master side.
-----------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Description: Testbench for Lightmax via AxisWrapper with random data injection.
+-- Type: Testbench
+-- Author: Anonymous
+-- License: MIT
+--------------------------------------------------------------------------------
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -70,23 +68,23 @@ begin
         );
 
     -- ---------------- Capture output ----------------
-    capture_proc : process(clk)
+    capture_proc : process(clk, rst_n)
         file fout : text open write_mode is "sim/sim_output.txt";
         variable line_out : line;
     begin
-        if rising_edge(clk) then
-            if rst_n = '1' then
-                if m_axis_tvalid = '1' and m_axis_tready = '1' then
-                    if capture_count < NUM_VALUES then
-                        captured_data(capture_count) <= to_integer(unsigned(m_axis_tdata));
-                        write(line_out, now);
-                        write(line_out, string'("  out["));
-                        write(line_out, capture_count);
-                        write(line_out, string'("] = "));
-                        write(line_out, to_integer(unsigned(m_axis_tdata)));
-                        writeline(fout, line_out);
-                        capture_count <= capture_count + 1;
-                    end if;
+        if rst_n = '0' then
+            capture_count <= 0;
+        elsif rising_edge(clk) then
+            if m_axis_tvalid = '1' and m_axis_tready = '1' then
+                if capture_count < NUM_VALUES then
+                    captured_data(capture_count) <= to_integer(unsigned(m_axis_tdata));
+                    write(line_out, now);
+                    write(line_out, string'("  out["));
+                    write(line_out, capture_count);
+                    write(line_out, string'("] = "));
+                    write(line_out, to_integer(unsigned(m_axis_tdata)));
+                    writeline(fout, line_out);
+                    capture_count <= capture_count + 1;
                 end if;
             end if;
         end if;
@@ -95,7 +93,7 @@ begin
     -- ---------------- Stimulus process ----------------
     stim_proc : process
         type t_inputs is array (0 to 7) of integer;
-        constant test_inputs : t_inputs := (36, 28, 20, 12, 4, -4, -12, -20);
+        constant TEST_INPUTS : t_inputs := (36, 28, 20, 12, 4, -4, -12, -20);
         variable line_out : line;
         file fin          : text open write_mode is "sim/sim_input.txt";
     begin
@@ -117,7 +115,7 @@ begin
 
         -- Send fixed inputs
         for i in 0 to 7 loop
-            s_axis_tdata  <= std_logic_vector(to_signed(test_inputs(i), 8));
+            s_axis_tdata  <= std_logic_vector(to_signed(TEST_INPUTS(i), 8));
             s_axis_tvalid <= '1';
             if i = 7 then
                 s_axis_tlast  <= '1';
@@ -128,7 +126,7 @@ begin
             -- Log input
             write(line_out, i);
             write(line_out, string'("  "));
-            write(line_out, test_inputs(i));
+            write(line_out, TEST_INPUTS(i));
             writeline(fin, line_out);
 
             wait until rising_edge(clk) and s_axis_tready = '1';

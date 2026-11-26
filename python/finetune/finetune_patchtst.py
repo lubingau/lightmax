@@ -7,21 +7,23 @@ Trains the full model (all parameters). Saves best checkpoint by test MSE.
 import argparse
 import json
 import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
 import torch
 import numpy as np
 import pandas as pd
-from pathlib import Path
 from torch.utils.data import DataLoader, TensorDataset
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from utils.patchtst_utils import build_patchtst_config, load_pretrained_patchtst
+from utils import dataset_config
 
 
-# ---------------- Argument parser ----------------
 parser = argparse.ArgumentParser(
     description="Fine-tune PatchTST on ETT/Weather datasets."
 )
-parser.add_argument("--data-dir", type=str, default="/media/lubin/Datasets/Forecasting",
+parser.add_argument("--data-dir", type=str, default=str(dataset_config.FORECASTING_DIR),
                     help="Directory containing CSV files")
 parser.add_argument("--model-name", type=str, default="ibm-research/patchtst-etth1-pretrain",
                     help="HuggingFace model ID for PatchTST")
@@ -46,8 +48,8 @@ parser.add_argument("--out-dir", type=str, default="models/",
                     help="Root directory for saving fine-tuned models")
 parser.add_argument("--num-workers", type=int, default=0)
 
-def load_forecasting_data(file_path: str):
-    """Load a CSV, split 80/20 train/test by row."""
+
+def load_forecasting_data(file_path: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     df = pd.read_csv(file_path, parse_dates=["date"])
     n = len(df)
     split = int(n * 0.8)
@@ -56,8 +58,7 @@ def load_forecasting_data(file_path: str):
     return train_df, test_df
 
 
-def standardize(train_df: pd.DataFrame, test_df: pd.DataFrame):
-    """Standardize with train-split statistics per channel."""
+def standardize(train_df: pd.DataFrame, test_df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     val_cols = [c for c in train_df.columns if c != "date"]
     mean = train_df[val_cols].mean().values.astype(np.float32)
     std = train_df[val_cols].std().values.astype(np.float32)
@@ -68,15 +69,7 @@ def standardize(train_df: pd.DataFrame, test_df: pd.DataFrame):
 
 
 def create_forecast_data(data: np.ndarray, seq_len: int, forecast_horizon: int,
-                         stride: int | None = None):
-    """Create (input, target) pairs for forecasting.
-
-    Slides windows of seq_len + forecast_horizon over the data with the given
-    stride (default: forecast_horizon, i.e. non-overlapping).
-    Returns:
-        inputs: [N, C, seq_len]
-        targets: [N, C, forecast_horizon]
-    """
+                         stride: int | None = None) -> Tuple[np.ndarray, np.ndarray]:
     if stride is None:
         stride = forecast_horizon
     C = data.shape[1]
@@ -94,18 +87,6 @@ def finetune_patchtst_on_dataset(args, model: torch.nn.Module,
                                 train_inputs: torch.Tensor, train_targets: torch.Tensor,
                                 test_inputs: torch.Tensor, test_targets: torch.Tensor,
                                 device: torch.device):
-    """Fine-tune the full PatchTST model, evaluating on test set each epoch.
-
-    PatchTST expects:
-        inputs:  (batch, seq_len, num_channels)
-        targets: (batch, forecast_horizon, num_channels)
-
-    Returns:
-        epoch_train_losses: list of per-epoch training MSE
-        epoch_test_metrics: list of dicts with "MAE" and "MSE" per epoch
-        best_state: full model state_dict at the epoch with lowest test MSE
-    """
-    # Transpose from our [N, C, L] to PatchTST [N, L, C]
     train_in = train_inputs.transpose(1, 2).contiguous()
     train_tgt = train_targets.transpose(1, 2).contiguous()
     test_in = test_inputs.transpose(1, 2).contiguous()
@@ -137,7 +118,6 @@ def finetune_patchtst_on_dataset(args, model: torch.nn.Module,
     for epoch in range(args.epochs):
         current_lr = scheduler.get_last_lr()[0]
 
-        # ---- Training (float16 if CUDA) ----
         model.train()
         total_loss = 0.0
         n_batches = 0
@@ -146,7 +126,7 @@ def finetune_patchtst_on_dataset(args, model: torch.nn.Module,
             optimizer.zero_grad()
             with torch.amp.autocast(device.type, enabled=use_amp):
                 outputs = model(past_values=batch_x)
-                pred = outputs.prediction_outputs  # [B, pred_len, C]
+                pred = outputs.prediction_outputs
                 loss = loss_fn(pred, batch_t)
             if use_amp:
                 scaler.scale(loss).backward()
@@ -160,7 +140,6 @@ def finetune_patchtst_on_dataset(args, model: torch.nn.Module,
         avg_train_loss = total_loss / max(n_batches, 1)
         epoch_train_losses.append(avg_train_loss)
 
-        # ---- Evaluation on test set ----
         model.eval()
         test_mae, test_mse = 0.0, 0.0
         n_test = 0
@@ -177,7 +156,6 @@ def finetune_patchtst_on_dataset(args, model: torch.nn.Module,
         avg_test_mae = test_mae / max(n_test, 1)
         epoch_test_metrics.append({"MAE": avg_test_mae, "MSE": avg_test_mse})
 
-        # Track best model
         if avg_test_mse < best_test_mse:
             best_test_mse = avg_test_mse
             best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
@@ -194,8 +172,7 @@ def finetune_patchtst_on_dataset(args, model: torch.nn.Module,
     return epoch_train_losses, epoch_test_metrics, best_state
 
 
-def run_finetuning(args):
-    """Orchestrate fine-tuning across datasets."""
+def run_finetuning(args) -> None:
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
 
@@ -267,7 +244,6 @@ def run_finetuning(args):
             test_in_t, test_tgt_t, device,
         )
 
-        # Save best model
         torch.save(best_state, model_path)
 
         best_epoch = None
@@ -305,8 +281,7 @@ def run_finetuning(args):
             torch.cuda.empty_cache()
 
 
-# ----------------- Main function -----------------
-def main():
+def main() -> None:
     args = parser.parse_args()
     run_finetuning(args)
 

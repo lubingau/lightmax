@@ -2,19 +2,20 @@
 
 Read CSV files from panda/ and produce a single 1x4 subplot figure
 showing performance vs saturation across all tasks.
-Saturation on the x-axis (None/original plotted at "∞" right of the max).
+Saturation on the x-axis (None/original plotted at "inf" right of the max).
 Color encodes model type (hue) and model size (shade).
 """
 
 import argparse
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib as mpl
 mpl.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
-# ---------------- Argument parser ----------------
+
 parser = argparse.ArgumentParser(
     description="Plot performance vs saturation across all tasks in a 1x4 subplot."
 )
@@ -37,7 +38,7 @@ parser.add_argument("--no-highlight", action="store_true",
 caption = """\
 Figure 1: Performance vs. saturation threshold across four domains. \
 Each subplot shows model accuracy (or error) as a function of the softmax \
-saturation ceiling, with the original unmodified softmax plotted at ∞. \
+saturation ceiling, with the original unmodified softmax plotted at infinity. \
 (a) Image Classification - top-1 accuracy on ImageNet-1k validation. \
 (b) NLP - next-token prediction accuracy on WikiText-103. \
 (c) Speech Recognition - word error rate on LibriSpeech test-clean. \
@@ -65,7 +66,6 @@ _PATCHTST_COLORS = {
     "PatchTST-ETTm1":    "#d94801",
     "PatchTST-ETTm2":    "#a63603",
 }
-
 
 _SIZE_ALPHA = {"tiny": 0.1, "small": 0.25, "base": 0.5, "large": 1.00}
 
@@ -113,8 +113,7 @@ _FONT_SIZE_TITLE = 20
 _SIZE_SORT_ORDER = {"large": 0, "base": 1, "small": 2, "tiny": 3}
 
 
-def alpha_blend_to_hex(fg_hex, alpha, bg_hex="#ffffff"):
-    """Blend foreground *fg_hex* over *bg_hex* at *alpha*, return a solid hex string."""
+def alpha_blend_to_hex(fg_hex: str, alpha: float, bg_hex: str = "#ffffff") -> str:
     def hex_to_rgb(h):
         h = h.lstrip("#")
         return tuple(int(h[i:i+2], 16) / 255.0 for i in (0, 2, 4))
@@ -126,14 +125,12 @@ def alpha_blend_to_hex(fg_hex, alpha, bg_hex="#ffffff"):
     return rgb_to_hex(*blended)
 
 
-def _legend_sort_key(model_name: str):
-    """Return a sort key so legend entries order by family then size (L → B → S)."""
+def _legend_sort_key(model_name: str) -> Tuple[str, int, str]:
     base, size = _parse_model_type_size(model_name)
     return (base, _SIZE_SORT_ORDER.get(size, 99), model_name)
 
 
-def _parse_model_type_size(model_name: str):
-    """Return (type_label, size_label) for a model name."""
+def _parse_model_type_size(model_name: str) -> Tuple[str, str]:
     name = model_name.lower()
     if "modernbert" in name:
         base = "ModernBERT"
@@ -152,7 +149,6 @@ def _parse_model_type_size(model_name: str):
 
 
 def _model_color(base: str, model_name: str) -> str:
-    """Return the base hex colour for a model family."""
     if base == "PatchTST":
         short = _short_model(model_name)
         if short in _PATCHTST_COLORS:
@@ -161,10 +157,8 @@ def _model_color(base: str, model_name: str) -> str:
 
 
 def _short_model(model_name: str) -> str:
-    """Shorten long model names for legend labels."""
     if model_name in _NAME_MAP:
         return _NAME_MAP[model_name]
-    # Fallback: strip known prefixes and -pretrain suffix
     s = model_name
     for prefix in ["ibm-research/", "answerdotai/", "facebook/"]:
         if s.startswith(prefix):
@@ -172,12 +166,8 @@ def _short_model(model_name: str) -> str:
     return s.replace("-pretrain", "")
 
 
-# ---------------------------------------------------------------------------
-# Plotting
-# ---------------------------------------------------------------------------
-
-def _plot_task(ax, df, metric_col: str, title: str, saturations=None, ylim=None, label_mask_values=None, legend_loc="best", highlight_ceiling=24, no_highlight=False):
-    """Draw one subplot on *ax*."""
+def _plot_task(ax, df, metric_col: str, title: str, saturations=None, ylim=None,
+              label_mask_values=None, legend_loc="best", highlight_ceiling=24, no_highlight=False):
     df = df.copy()
     df["ceiling_num"] = pd.to_numeric(df["ceiling"], errors="coerce")
 
@@ -213,17 +203,15 @@ def _plot_task(ax, df, metric_col: str, title: str, saturations=None, ylim=None,
             ax.plot(sdf["x"], y, marker=marker, label=label,
                     color=alpha_blend_to_hex(color, base_alpha * style_alpha), linestyle=ls, markersize=4, markeredgewidth=0)
 
-    # ── highlight ────────────────────────────────────────────────────
     if not no_highlight and highlight_ceiling is not None:
         ax.axvline(x=highlight_ceiling, color="red", linestyle="--", linewidth=1.5, alpha=1, zorder=0)
 
-    # ── x-axis ticks ─────────────────────────────────────────────────
     ticks = sorted(df["ceiling_num"].dropna().unique())
     mask_set = set(label_mask_values) if label_mask_values else set()
     tick_labels = []
     for t in ticks:
         tick_labels.append(f"{int(t)}" if int(t) not in mask_set else "")
-    tick_labels.append("∞")
+    tick_labels.append(chr(8734))
     ax.set_xticks(list(ticks) + [inf_x])
     ax.set_xticklabels(tick_labels)
     ax.set_xlim(0, inf_x * 1.05)
@@ -239,23 +227,13 @@ def _plot_task(ax, df, metric_col: str, title: str, saturations=None, ylim=None,
         ax.set_ylim(ylim)
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
-def main():
+def main() -> None:
     args = parser.parse_args()
     input_dir = Path(args.input_dir)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     csv_suffix = args.csv_name if args.csv_name else "_results"
-    # tasks = [
-    #     (f"eval_classification{csv_suffix}.csv",  "top1", "(a) Image Classification\n(ImageNet-1k val)", (60, None)),
-    #     (f"eval_llm{csv_suffix}.csv",            "Top1", "(b) Natural Language Processing\n(WikiText-103)"),
-    #     (f"eval_audio{csv_suffix}.csv",          "WER",  "(c) Speech Recognition\n(LibriSpeech test-clean)", (0, 6)),
-    #     (f"eval_forecasting{csv_suffix}.csv",    "MSE",  "(d) Time Series Forecasting\n(ETTh1/ETTm1/ETTh2/ETTm2)"),
-    # ]
     tasks = [
         (f"eval_image{csv_suffix}.csv",       "top1", "(a) ImageNet-1k val", (60, None)),
         (f"eval_language{csv_suffix}.csv",    "Top1", "(b) WikiText-103", (0, None)),
@@ -267,7 +245,6 @@ def main():
 
     for ax, (fname, metric, title, *ylim_args) in zip(axes, tasks):
         csv_path = input_dir / fname
-        # look up legend location by matching csv filename prefix
         legend_loc = next((legend_loc for key, legend_loc in _LEGEND_LOC_MAP.items() if fname.startswith(key)), "best")
         if csv_path.exists():
             _plot_task(ax, pd.read_csv(csv_path), metric, title,
@@ -279,9 +256,8 @@ def main():
             ax.text(0.5, 0.5, "No data", transform=ax.transAxes,
                     ha="center", va="center", fontsize=_FONT_SIZE_LABEL, color="gray")
             ax.set_title(title, fontweight="bold", fontsize=_FONT_SIZE_LABEL)
-    
+
     fig.tight_layout(w_pad=1)
-    # fig.suptitle(caption, fontsize=12, y=-0.2, x=0.01, ha='left', va='bottom', wrap=True)
     out_path = output_dir / "performance_vs_saturation.pdf"
     fig.savefig(out_path, dpi=args.dpi, bbox_inches="tight")
     print(f"Saved: {out_path}")

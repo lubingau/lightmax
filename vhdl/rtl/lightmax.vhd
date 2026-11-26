@@ -1,3 +1,10 @@
+--------------------------------------------------------------------------------
+-- Description: Top-level LightMax entity combining input buffer, LUTs, and core.
+-- Type: Behavioral
+-- Author: Anonymous
+-- License: MIT
+--------------------------------------------------------------------------------
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;

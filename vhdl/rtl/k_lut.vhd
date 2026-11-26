@@ -1,3 +1,10 @@
+--------------------------------------------------------------------------------
+-- Description: Combinational LUT for the leading-one-detector (integer part of log2).
+-- Type: Behavioral
+-- Author: Anonymous
+-- License: MIT
+--------------------------------------------------------------------------------
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;

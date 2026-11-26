@@ -13,11 +13,11 @@ weights actually load.
 
 import os
 from pathlib import Path
+from typing import Dict, Optional, Tuple
 
 import torch
 
-# Architecture of the released pretrained checkpoints (transformers 4.33 config):
-# patch_length=12, stride=12, d_model=128, 6 encoder layers, 16 heads, ffn 512.
+
 PRETRAINED_ARCH = dict(
     patch_length=12,
     patch_stride=12,
@@ -30,10 +30,6 @@ PRETRAINED_ARCH = dict(
 
 def build_patchtst_config(num_channels: int, seq_len: int, forecast_horizon: int,
                           patch_length: int = 12, patch_stride: int = 12):
-    """Build a PatchTSTConfig with modern (transformers >=5.x) kwarg names.
-
-    Defaults match the released pretrained checkpoints so their weights load.
-    """
     from transformers import PatchTSTConfig
 
     return PatchTSTConfig(
@@ -56,8 +52,7 @@ def build_patchtst_config(num_channels: int, seq_len: int, forecast_horizon: int
     )
 
 
-def remap_old_checkpoint(sd: dict) -> dict:
-    """Map transformers-4.33 PatchTST tensor names to modern module names."""
+def remap_old_checkpoint(sd: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
     out = {}
     for k, v in sd.items():
         nk = k
@@ -73,13 +68,7 @@ def remap_old_checkpoint(sd: dict) -> dict:
 
 def load_pretrained_patchtst(model_name: str, num_channels: int,
                              seq_len: int, forecast_horizon: int,
-                             cache_dir: str | None = None):
-    """Load a pretrained PatchTST checkpoint into a modern PatchTSTForPrediction.
-
-    Downloads the checkpoint, remaps its 4.33-era tensor names, and transfers every
-    tensor whose shape matches (the forecasting head is task-specific and stays
-    randomly initialized).  Returns (model, report_dict).
-    """
+                             cache_dir: Optional[str] = None):
     from huggingface_hub import snapshot_download
     from transformers import PatchTSTForPrediction
 

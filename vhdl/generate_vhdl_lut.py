@@ -15,7 +15,19 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "python"
 from lightmax import LightMax
 
 
-def generate_exp_lut(model, output_path):
+parser = argparse.ArgumentParser(
+    description="Generate VHDL LUT files from the Python LightMax reference model."
+)
+parser.add_argument("--output-dir", type=str, default=None,
+                    help="Output directory (default: <script_dir>/rtl)")
+parser.add_argument("--ceiling", type=float, default=24.0)
+parser.add_argument("--in-bw", type=int, default=8)
+parser.add_argument("--out-bw", type=int, default=8)
+parser.add_argument("--k-bits", type=int, default=4)
+parser.add_argument("--s-bits", type=int, default=6)
+
+
+def generate_exp_lut(model, output_path: str) -> None:
     depth = len(model.exp_lut)
     data_width = model.out_bw - 1
     bit_addr = int(math.log2(depth))
@@ -73,7 +85,7 @@ def generate_exp_lut(model, output_path):
     print(f"  Written {output_path}")
 
 
-def generate_k_lut(model, output_path):
+def generate_k_lut(model, output_path: str) -> None:
     depth = len(model.k_lut)
     max_val = max(abs(int(model.k_lut.min())), abs(int(model.k_lut.max())))
     data_width = max(2, int(math.ceil(math.log2(max_val + 1))) + 1)
@@ -120,7 +132,7 @@ def generate_k_lut(model, output_path):
     print(f"  Written {output_path}")
 
 
-def generate_s_lut(model, output_path):
+def generate_s_lut(model, output_path: str) -> None:
     depth = len(model.s_lut)
     max_val = int(model.s_lut.max())
     data_width = max(2, int(math.ceil(math.log2(max_val + 1)))) if max_val > 0 else 2
@@ -168,7 +180,7 @@ def generate_s_lut(model, output_path):
     print(f"  Written {output_path}")
 
 
-def generate_dual_exp_lut(model, output_path):
+def generate_dual_exp_lut(model, output_path: str) -> None:
     depth = len(model.exp_lut)
     data_width = model.out_bw - 1
     bit_addr = int(math.log2(depth))
@@ -201,7 +213,7 @@ def generate_dual_exp_lut(model, output_path):
     lines.append("")
     lines.append("    type array_exp_t is array (0 to EXP_DEPTH-1) of unsigned(DATA_EXP-1 downto 0);")
     lines.append("    signal mem_exp : array_exp_t := (")
-    lines.append("")
+
     for i in range(depth):
         val = int(model.exp_lut[i])
         sep = "," if i < depth - 1 else ""
@@ -233,17 +245,7 @@ def generate_dual_exp_lut(model, output_path):
     print(f"  Written {output_path}")
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Generate VHDL LUT files from the Python LightMax reference model."
-    )
-    parser.add_argument("--output-dir", type=str, default=None,
-                        help="Output directory (default: <script_dir>/rtl)")
-    parser.add_argument("--ceiling", type=float, default=24.0)
-    parser.add_argument("--in-bw", type=int, default=8)
-    parser.add_argument("--out-bw", type=int, default=8)
-    parser.add_argument("--k-bits", type=int, default=4)
-    parser.add_argument("--s-bits", type=int, default=6)
+def main() -> None:
     args = parser.parse_args()
 
     if args.output_dir is None:

@@ -1,3 +1,10 @@
+--------------------------------------------------------------------------------
+-- Description: Dual-unit LightMax core for two parallel softmax computations.
+-- Type: Behavioral
+-- Author: Anonymous
+-- License: MIT
+--------------------------------------------------------------------------------
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;

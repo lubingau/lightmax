@@ -7,7 +7,10 @@ Single implementation: LightMax, with reversed (non-negative)
 LUT indexing following the paper's log-domain reformulation (Section III-A).
 """
 
+import argparse
 import math
+from typing import List, Tuple
+
 import torch
 import torch.nn as nn
 
@@ -40,7 +43,6 @@ class LightMax(nn.Module):
         self.in_bw = in_bw
         self.out_bw = out_bw
 
-        # Quantization scales
         self.input_scale = torch.tensor(
             ceiling / (2 ** (in_bw - 1) - 1), dtype=torch.float16
         )
@@ -49,16 +51,12 @@ class LightMax(nn.Module):
         )
         self.ln_scale = (2 ** (in_bw - 1) - 1) / ceiling
 
-        # Exponent LUT: 2^(in_bw-1) entries spanning [0, ceiling] so that
-        # LUT[index] = exp(-index * input_scale)  (step == input_scale).
         self.exp_bw = in_bw - 1
         self.register_buffer(
             "exp_lut", torch.zeros(2**self.exp_bw, dtype=torch.int32)
         )
         self._init_exp_lut()
 
-        # k.ln(2) LUT: 2^k_bits entries storing quantized k.ln(2).ln_scale
-        # ln(1+s) LUT: 2^s_bits entries storing quantized ln(1+s/2^s_bits).ln_scale
         self.k_bits = k_bits
         self.s_bits = s_bits
         self.register_buffer(
@@ -70,15 +68,11 @@ class LightMax(nn.Module):
         self._init_k_lut()
         self._init_s_lut()
 
-    def _init_exp_lut(self):
-        """Build reversed exp LUT: LUT[i] = exp(-i * input_scale) for i in [0, ceiling].
-
-        Indexed directly by the non-negative quantized value x_stable_rev = x_max - x.
-        """
+    def _init_exp_lut(self) -> None:
         x_exp = torch.linspace(
             0.0, self.ceiling, 2**self.exp_bw, dtype=torch.float64
         )
-        y_exp = torch.exp(-x_exp)  # reversed: LUT[0] = exp(0) = 1
+        y_exp = torch.exp(-x_exp)
         yq_exp = (
             torch.round(y_exp * (2 ** (self.out_bw - 1) - 1))
             .clamp(min=0, max=2 ** (self.out_bw - 1) - 1)
@@ -86,16 +80,14 @@ class LightMax(nn.Module):
         )
         self.exp_lut = yq_exp
 
-    def _init_k_lut(self):
-        """Build k_lut indexed by k_q: quantized (k * ln(2) - ln(out_scale_max)) * ln_scale."""
+    def _init_k_lut(self) -> None:
         ln2 = math.log(2.0)
-        ln_out_scale = math.log(2 ** (self.out_bw - 1) - 1)  # correct for scaled exp LUT
+        ln_out_scale = math.log(2 ** (self.out_bw - 1) - 1)
         for k in range(2**self.k_bits):
             val = round((k * ln2 - ln_out_scale) * self.ln_scale)
             self.k_lut[k] = torch.tensor(val, dtype=torch.int32)
 
-    def _init_s_lut(self):
-        """Build s_lut indexed by s_q: quantized ln(1 + s_q/2^s_bits) * ln_scale."""
+    def _init_s_lut(self) -> None:
         denom = 2**self.s_bits
         for s_q in range(2**self.s_bits):
             s_val = s_q / denom
@@ -103,16 +95,6 @@ class LightMax(nn.Module):
             self.s_lut[s_q] = torch.tensor(val, dtype=torch.int32)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Apply LightMax approximation with reversed LUT indexing.
-
-        Uses in-place tensor reuse and int32 intermediates.
-
-        Args:
-            x: Input logits of any shape (softmax is applied on the last dim).
-
-        Returns:
-            Approximate softmax probabilities, same dtype as input.
-        """
         orig_dtype = x.dtype
         x = x.to(torch.float16).clamp_(-self.ceiling, self.ceiling)
         xq = (
@@ -124,9 +106,8 @@ class LightMax(nn.Module):
         k_lut = self.k_lut.to(xq.device)
         s_lut = self.s_lut.to(xq.device)
 
-        # --- hardware start here ---
         x_max = xq.max(dim=-1, keepdim=True).values
-        xq = x_max - xq               # x_int32 -- non-negative
+        xq = x_max - xq
         del x_max
         xq.clamp_(0, len(self.exp_lut) - 1)
         exp_rev = exp_lut[xq]
@@ -147,13 +128,11 @@ class LightMax(nn.Module):
         del lnsum_q
         xq.clamp_(0, len(self.exp_lut) - 1)
         exp_out = exp_lut[xq]
-        # --- hardware end here ---
         probabilities = exp_out * self.output_scale
         return probabilities.to(orig_dtype)
 
 
-def get_lut_sizes(luts):
-    """Return the sizes of the LUTs in bytes."""
+def get_lut_sizes(luts: torch.Tensor) -> Tuple[int, int, int, int]:
     n_entries = len(luts)
     n_bits_entry = int(math.ceil(math.log2(n_entries)))
     print(f"[INFO] LUT min: {min(luts)}, max: {max(luts)}")
@@ -167,11 +146,7 @@ def get_lut_sizes(luts):
     return n_entries, n_bits_entry, n_bits_output, n_entries * n_bits_entry * n_bits_entry
 
 
-# ----------------- Main function -----------------
-def main_lightmax():
-    """Run a quick accuracy benchmark of LightMax vs torch.softmax."""
-    import argparse
-
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="LightMax test")
     parser.add_argument("--ceiling", type=float, default=24)
     parser.add_argument("--in-bw", type=int, default=8)
@@ -180,7 +155,11 @@ def main_lightmax():
     parser.add_argument("--s-bits", type=int, default=6)
     parser.add_argument("--num-trials", type=int, default=100)
     parser.add_argument("--shape", type=int, nargs=2, default=[16, 64])
-    args = parser.parse_args()
+    return parser
+
+
+def main() -> float:
+    args = _build_parser().parse_args()
 
     model = LightMax(
         ceiling=args.ceiling,
@@ -221,4 +200,4 @@ def main_lightmax():
 
 if __name__ == "__main__":
     print("=== LightMax Benchmark ===")
-    main_lightmax()
+    main()

@@ -26,4 +26,4 @@ ghdl -r --std=02 -frelaxed Tb_Run_P${P} --vcd=sim/output_P${P}.vcd --stop-time=1
 
 cp sim/sim_output_multi.txt sim/sim_output_P${P}.txt
 
-/home/lubin/anaconda3/envs/DEE/bin/python3 analyze_results.py --units $P
+python3 analyze_results.py --units $P

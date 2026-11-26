@@ -1,13 +1,9 @@
-----------------------------------------------------------------------------------
--- Testbench for Lightmax via AxisWrapper - reads inputs from sim/sim_input.txt
---
--- Replaces the hardcoded constant array in tb_lightmax.vhd with a textio file
--- read, so real captured attention logits can be fed into the VHDL simulation.
--- Output is written to sim/sim_output.txt (same format), compatible with
--- analyze_results.py.
---
--- Generic NUM_VALUES must match the number of data lines in sim_input.txt.
-----------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Description: Testbench for Lightmax reading attention logits from sim_input.txt.
+-- Type: Testbench
+-- Author: Anonymous
+-- License: MIT
+--------------------------------------------------------------------------------
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -79,23 +75,23 @@ begin
         );
 
     -- ---------------- Capture output ----------------
-    capture_proc : process(clk)
+    capture_proc : process(clk, rst_n)
         file fout : text open write_mode is "sim/sim_output.txt";
         variable line_out : line;
     begin
-        if rising_edge(clk) then
-            if rst_n = '1' then
-                if m_axis_tvalid = '1' and m_axis_tready = '1' then
-                    if capture_count < NUM_VALUES then
-                        captured_data(capture_count) <= to_integer(unsigned(m_axis_tdata));
-                        write(line_out, now);
-                        write(line_out, string'("  out["));
-                        write(line_out, capture_count);
-                        write(line_out, string'("] = "));
-                        write(line_out, to_integer(unsigned(m_axis_tdata)));
-                        writeline(fout, line_out);
-                        capture_count <= capture_count + 1;
-                    end if;
+        if rst_n = '0' then
+            capture_count <= 0;
+        elsif rising_edge(clk) then
+            if m_axis_tvalid = '1' and m_axis_tready = '1' then
+                if capture_count < NUM_VALUES then
+                    captured_data(capture_count) <= to_integer(unsigned(m_axis_tdata));
+                    write(line_out, now);
+                    write(line_out, string'("  out["));
+                    write(line_out, capture_count);
+                    write(line_out, string'("] = "));
+                    write(line_out, to_integer(unsigned(m_axis_tdata)));
+                    writeline(fout, line_out);
+                    capture_count <= capture_count + 1;
                 end if;
             end if;
         end if;

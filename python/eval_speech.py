@@ -9,6 +9,7 @@ Outputs a CSV with columns:
 
 import argparse
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 import torch
 import pandas as pd
@@ -16,7 +17,7 @@ from datasets import load_dataset
 from utils.attention_hooks import progress_bar, install_wav2vec2_saturation_hook, install_wav2vec2_lightmax_hook
 from utils import dataset_config
 
-# ---------------- Argument parser ----------------
+
 parser = argparse.ArgumentParser(
     description="Evaluate attention saturation on LibriSpeech (wav2vec2)."
 )
@@ -53,7 +54,6 @@ parser.add_argument("--s-bits", type=int, default=6)
 
 @torch.no_grad()
 def compute_wer(model, processor, loader, device):
-    """Compute WER for all samples in loader."""
     all_preds, all_refs = [], []
     for batch in progress_bar(loader):
         input_values = batch["input_values"].to(device)
@@ -88,7 +88,6 @@ def compute_wer(model, processor, loader, device):
 
 
 def collate_fn(batch, processor):
-    """Collate audio batches for wav2vec2."""
     input_values = processor(
         [b["audio"]["array"] for b in batch],
         sampling_rate=16000, return_tensors="pt", padding=True,
@@ -97,8 +96,7 @@ def collate_fn(batch, processor):
     return {"input_values": input_values, "text": texts}
 
 
-def run_task(args):
-    """Orchestrate audio evaluation and save CSV."""
+def run_task(args) -> None:
     import os
     os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
     from transformers.utils.logging import disable_progress_bar
@@ -136,7 +134,6 @@ def run_task(args):
         sat_values = args.saturation if args.saturation else [32.0]
         has_lightmax_flag = args.use_lightmax
 
-        # --- 1. Baseline: pure model, no hooks ---
         if not args.no_baseline:
             model = Wav2Vec2ForCTC.from_pretrained(model_name, **cache_kwargs).to(device)
             model.eval()
@@ -164,9 +161,7 @@ def run_task(args):
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
-        # --- 2. Per saturation: LightMax / plain softmax ---
         for sat in sat_values:
-            # --- 2a. LightMax ---
             if args.use_lightmax:
                 model = Wav2Vec2ForCTC.from_pretrained(model_name, **cache_kwargs).to(device)
                 model.eval()
@@ -202,7 +197,6 @@ def run_task(args):
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
 
-            # --- 2b. No LightMax flag set -> plain softmax with saturation hooks ---
             if not has_lightmax_flag:
                 model = Wav2Vec2ForCTC.from_pretrained(model_name, **cache_kwargs).to(device)
                 model.eval()
@@ -242,8 +236,7 @@ def run_task(args):
     print(f"\nResults saved to {out_path}")
 
 
-# ----------------- Main function -----------------
-def main():
+def main() -> None:
     args = parser.parse_args()
     run_task(args)
 

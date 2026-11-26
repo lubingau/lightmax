@@ -9,8 +9,12 @@ import os
 from pathlib import Path
 
 
-# Root datasets directory
-DATASETS_ROOT = Path("/media/lubin/Datasets")
+# Root datasets directory — resolved relative to this file,
+# so it points to python/datasets/ (a local symlink, gitignored).
+DATASETS_ROOT = Path(__file__).resolve().parent.parent / "datasets"
+
+# Forecasting directory
+FORECASTING_DIR = DATASETS_ROOT / "Forecasting"
 
 # HuggingFace dataset cache (for load_dataset)
 HF_DATASETS_CACHE = DATASETS_ROOT / "huggingface" / "datasets"

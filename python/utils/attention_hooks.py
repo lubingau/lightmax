@@ -1,36 +1,26 @@
-"""
-attention_hooks.py
+"""attention_hooks.py
 
 Shared utility for applying pre-softmax attention logit saturation by
-monkey-patching the `eager_attention_forward` in HuggingFace transformers
-or the `forward` of timm attention modules.
+monkey-patching the ``eager_attention_forward`` in HuggingFace transformers
+or the ``forward`` of timm attention modules.
 """
+
+from typing import Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Optional
-
 from tqdm import tqdm as _tqdm
 
 
 def progress_bar(iterable, **kwargs):
-    """Unified tqdm wrapper for evaluation scripts.
-
-    Override default ``desc`` via ``progress_bar(..., desc="...")``.
-    """
     kwargs.setdefault("desc", "  Batches")
     return _tqdm(iterable, **kwargs)
 
 
 def _make_eager_saturation_hook(thr: Optional[float]):
-    """
-    Return a replacement for HF's `eager_attention_forward` that clamps
-    QK^T * scaling to [-thr, thr] before softmax.  If thr is None the
-    result is None (baseline, no patching).
-    """
     if thr is None:
-        return None  # signal "keep original"
+        return None
 
     def _hooked(
         module: nn.Module,
@@ -45,9 +35,7 @@ def _make_eager_saturation_hook(thr: Optional[float]):
         attn_weights = torch.matmul(query, key.transpose(2, 3)) * scaling
         if attention_mask is not None:
             attn_weights = attn_weights + attention_mask
-        # --- SATURATION: clamp pre-softmax logits ---
         attn_weights = torch.clamp(attn_weights, -thr, thr)
-        # --------------------------------------------
         attn_weights = F.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query.dtype)
         attn_weights = F.dropout(attn_weights, p=dropout, training=module.training)
         attn_output = torch.matmul(attn_weights, value)
@@ -57,25 +45,17 @@ def _make_eager_saturation_hook(thr: Optional[float]):
     return _hooked
 
 
-def install_hf_saturation_hook(model: nn.Module, thr: Optional[float]):
-    """
-    Monkey-patch all `eager_attention_forward` in every attention module
-    of a HuggingFace model.  thr=None is a no-op (baseline).
-    """
+def install_hf_saturation_hook(model: nn.Module, thr: Optional[float]) -> None:
     hook_fn = _make_eager_saturation_hook(thr)
     if hook_fn is None:
-        return  # baseline -- no patching
+        return
 
     for module in model.modules():
         if hasattr(module, "eager_attention_forward"):
             module.eager_attention_forward = hook_fn.__get__(module, type(module))
 
 
-# ────────────────────── timm attention hooks ──────────────────────
-
-
 def _make_timm_attention_hook(thr: Optional[float]):
-    """Saturation hook for timm's `Attention` (ViT). Returns None if thr is None."""
     if thr is None:
         return None
 
@@ -88,9 +68,7 @@ def _make_timm_attention_hook(thr: Optional[float]):
         attn = q @ k.transpose(-2, -1)
         if attn_mask is not None:
             attn = attn + attn_mask
-        # --- SATURATION ---
         attn = torch.clamp(attn, -thr, thr)
-        # -----------------
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
         x = attn @ v
@@ -103,7 +81,6 @@ def _make_timm_attention_hook(thr: Optional[float]):
 
 
 def _make_timm_windowattention_hook(thr: Optional[float]):
-    """Saturation hook for timm's `WindowAttention` (Swin)."""
     if thr is None:
         return None
 
@@ -118,9 +95,7 @@ def _make_timm_windowattention_hook(thr: Optional[float]):
             num_win = mask.shape[0]
             attn = attn.view(-1, num_win, self.num_heads, N, N) + mask.unsqueeze(1).unsqueeze(0)
             attn = attn.view(-1, self.num_heads, N, N)
-        # --- SATURATION ---
         attn = torch.clamp(attn, -thr, thr)
-        # -----------------
         attn = self.softmax(attn)
         attn = self.attn_drop(attn)
         x = attn @ v
@@ -132,11 +107,7 @@ def _make_timm_windowattention_hook(thr: Optional[float]):
     return _hooked
 
 
-# ────────────────────── T5 attention hooks (MOMENT) ──────────────────────
-
-
 def _make_t5_attention_hook(thr: Optional[float]):
-    """Saturation hook for T5Attention used by MOMENT."""
     if thr is None:
         return None
 
@@ -161,9 +132,7 @@ def _make_t5_attention_hook(thr: Optional[float]):
             attn = attn + position_bias
         if mask is not None:
             attn = attn + mask
-        # --- SATURATION ---
         attn = torch.clamp(attn, -thr, thr)
-        # -----------------
         attn = F.softmax(attn, dim=-1)
         attn = F.dropout(attn, p=self.dropout, training=self.training)
         out = torch.matmul(attn, value).transpose(1, 2).reshape(bs, seq_len, -1)
@@ -173,11 +142,7 @@ def _make_t5_attention_hook(thr: Optional[float]):
     return _hooked
 
 
-# ────────────────────── Swin & Wav2Vec2 hooks ──────────────────────
-
-
 def _make_eager_forward_clamp_wrapper(thr: float):
-    """Wrap an `eager_attention_forward` to clamp before softmax."""
     def _wrapped(
         module: nn.Module,
         query: torch.Tensor,
@@ -201,32 +166,22 @@ def _make_eager_forward_clamp_wrapper(thr: float):
     return _wrapped
 
 
-def install_swin_saturation_hook(model: nn.Module, thr: Optional[float]):
-    """Patch `eager_attention_forward` in transformers.models.swin.modeling_swin."""
+def install_swin_saturation_hook(model: nn.Module, thr: Optional[float]) -> None:
     if thr is None:
         return
     import transformers.models.swin.modeling_swin as swin_module
     swin_module.eager_attention_forward = _make_eager_forward_clamp_wrapper(thr)
 
 
-def install_wav2vec2_saturation_hook(model: nn.Module, thr: Optional[float]):
-    """Patch `eager_attention_forward` in transformers.models.wav2vec2.modeling_wav2vec2."""
+def install_wav2vec2_saturation_hook(model: nn.Module, thr: Optional[float]) -> None:
     if thr is None:
         return
     import transformers.models.wav2vec2.modeling_wav2vec2 as w2v_module
     w2v_module.eager_attention_forward = _make_eager_forward_clamp_wrapper(thr)
 
 
-# ────────────────────── Mask2FormerAttention hook (inline bmm + softmax) ──────────────────────
-
-
-def install_modernbert_saturation_hook(model: nn.Module, thr: Optional[float]):
-    """Patch `eager_attention_forward` in transformers.models.modernbert.modeling_modernbert.
-
-    When thr is None, the original function is restored (undo).
-    """
+def install_modernbert_saturation_hook(model: nn.Module, thr: Optional[float]) -> None:
     import transformers.models.modernbert.modeling_modernbert as modernbert_module
-    # Save original on first invocation
     if not hasattr(install_modernbert_saturation_hook, "_original"):
         install_modernbert_saturation_hook._original = modernbert_module.eager_attention_forward
 
@@ -237,11 +192,7 @@ def install_modernbert_saturation_hook(model: nn.Module, thr: Optional[float]):
     modernbert_module.eager_attention_forward = _make_eager_forward_clamp_wrapper(thr)
 
 
-# ────────────────────── Mask2FormerAttention hook (inline bmm + softmax) ──────────────────────
-
-
-def install_mask2former_attention_saturation_hook(model: nn.Module, thr: Optional[float]):
-    """Install saturation on Mask2FormerAttention modules (inline bmm)."""
+def install_mask2former_attention_saturation_hook(model: nn.Module, thr: Optional[float]) -> None:
     if thr is None:
         return
     from transformers.models.mask2former.modeling_mask2former import Mask2FormerAttention
@@ -304,11 +255,7 @@ def install_mask2former_attention_saturation_hook(model: nn.Module, thr: Optiona
             module.forward = _patched_forward.__get__(module, Mask2FormerAttention)
 
 
-# ────────────────────── public installers ──────────────────────
-
-
-def install_timm_saturation_hook(model: nn.Module, thr: Optional[float]):
-    """Install on timm `Attention` (ViT) and `WindowAttention` (Swin)."""
+def install_timm_saturation_hook(model: nn.Module, thr: Optional[float]) -> None:
     from timm.layers.attention import Attention
     from timm.models.swin_transformer import WindowAttention
 
@@ -325,8 +272,7 @@ def install_timm_saturation_hook(model: nn.Module, thr: Optional[float]):
                 module.forward = win_hook.__get__(module, WindowAttention)
 
 
-def install_t5_saturation_hook(model: nn.Module, thr: Optional[float]):
-    """Install saturation on T5Attention (used by MOMENT)."""
+def install_t5_saturation_hook(model: nn.Module, thr: Optional[float]) -> None:
     from transformers.models.t5.modeling_t5 import T5Attention
 
     hook = _make_t5_attention_hook(thr)
@@ -335,8 +281,8 @@ def install_t5_saturation_hook(model: nn.Module, thr: Optional[float]):
             if isinstance(module, T5Attention):
                 module.forward = hook.__get__(module, T5Attention)
 
-def install_patchtst_saturation_hook(model: nn.Module, thr: Optional[float]):
-    """Install saturation on PatchTSTAttention (used by PatchTSTForPrediction)."""
+
+def install_patchtst_saturation_hook(model: nn.Module, thr: Optional[float]) -> None:
     if thr is None:
         return
 
@@ -361,7 +307,6 @@ def install_patchtst_saturation_hook(model: nn.Module, thr: Optional[float]):
             key_states = self.k_proj(current_states).view(kv_shape).transpose(1, 2)
             value_states = self.v_proj(current_states).view(kv_shape).transpose(1, 2)
 
-            # --- Manual attention with saturation clamp ---
             attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) * self.scaling
             if attention_mask is not None:
                 attn_weights = attn_weights + attention_mask
@@ -384,14 +329,7 @@ def install_patchtst_saturation_hook(model: nn.Module, thr: Optional[float]):
             module.forward = patched_fn.__get__(module, PatchTSTAttention)
 
 
-# =====================================================================
-# LightMax hooks — replace F.softmax with lightmax_module(attn_weights)
-# The clamp is also applied (saturation is always used with LightMax).
-# =====================================================================
-
-
 def _make_eager_lightmax_hook(lightmax_module, thr):
-    """Return a replacement for HF's `eager_attention_forward` using LightMax."""
     if lightmax_module is None:
         return None
 
@@ -402,7 +340,7 @@ def _make_eager_lightmax_hook(lightmax_module, thr):
         if thr is not None:
             attn_weights = torch.clamp(attn_weights, -thr, thr)
         attn_weights = lightmax_module(attn_weights)
-        attn_weights = attn_weights.to(value.dtype)  # ensure matching dtypes for matmul
+        attn_weights = attn_weights.to(value.dtype)
         attn_weights = F.dropout(attn_weights, p=dropout, training=module.training)
         attn_output = torch.matmul(attn_weights, value)
         attn_output = attn_output.transpose(1, 2).contiguous()
@@ -410,8 +348,7 @@ def _make_eager_lightmax_hook(lightmax_module, thr):
     return _hooked
 
 
-def install_hf_lightmax_hook(model, lightmax_module, thr=None):
-    """Replace eager_attention_forward softmax with LightMax in HF attention modules."""
+def install_hf_lightmax_hook(model, lightmax_module, thr=None) -> None:
     hook_fn = _make_eager_lightmax_hook(lightmax_module, thr)
     if hook_fn is None:
         return
@@ -419,8 +356,8 @@ def install_hf_lightmax_hook(model, lightmax_module, thr=None):
         if hasattr(module, "eager_attention_forward"):
             module.eager_attention_forward = hook_fn.__get__(module, type(module))
 
+
 def _make_timm_lightmax_hook(lightmax_module, thr):
-    """Return a replacement for timm's `Attention.forward` using LightMax."""
     if lightmax_module is None:
         return None
 
@@ -436,7 +373,7 @@ def _make_timm_lightmax_hook(lightmax_module, thr):
         if thr is not None:
             attn = torch.clamp(attn, -thr, thr)
         attn = lightmax_module(attn)
-        attn = attn.to(v.dtype)  # ensure matching dtypes for matmul
+        attn = attn.to(v.dtype)
         attn = self.attn_drop(attn)
         x = attn @ v
         x = x.transpose(1, 2).reshape(B, N, C)
@@ -447,7 +384,6 @@ def _make_timm_lightmax_hook(lightmax_module, thr):
 
 
 def _make_timm_windowattention_lightmax_hook(lightmax_module, thr):
-    """Return a replacement for timm's `WindowAttention.forward` using LightMax."""
     if lightmax_module is None:
         return None
 
@@ -465,7 +401,7 @@ def _make_timm_windowattention_lightmax_hook(lightmax_module, thr):
         if thr is not None:
             attn = torch.clamp(attn, -thr, thr)
         attn = lightmax_module(attn)
-        attn = attn.to(v.dtype)  # ensure matching dtypes for matmul
+        attn = attn.to(v.dtype)
         attn = self.attn_drop(attn)
         x = attn @ v
         x = x.transpose(1, 2).reshape(B_, N, -1)
@@ -475,8 +411,7 @@ def _make_timm_windowattention_lightmax_hook(lightmax_module, thr):
     return _hooked
 
 
-def install_timm_lightmax_hook(model, lightmax_module, thr=None):
-    """Install LightMax on timm `Attention` (ViT) and `WindowAttention` (Swin)."""
+def install_timm_lightmax_hook(model, lightmax_module, thr=None) -> None:
     from timm.layers.attention import Attention
     from timm.models.swin_transformer import WindowAttention
 
@@ -492,8 +427,8 @@ def install_timm_lightmax_hook(model, lightmax_module, thr=None):
             if isinstance(module, WindowAttention):
                 module.forward = win_hook.__get__(module, WindowAttention)
 
+
 def _make_t5_lightmax_hook(lightmax_module, thr):
-    """Return a replacement for T5Attention.forward using LightMax."""
     if lightmax_module is None:
         return None
 
@@ -521,7 +456,7 @@ def _make_t5_lightmax_hook(lightmax_module, thr):
         if thr is not None:
             attn = torch.clamp(attn, -thr, thr)
         attn = lightmax_module(attn)
-        attn = attn.to(value.dtype)  # ensure matching dtypes for matmul
+        attn = attn.to(value.dtype)
         attn = F.dropout(attn, p=self.dropout, training=self.training)
         out = torch.matmul(attn, value).transpose(1, 2).reshape(bs, seq_len, -1)
         out = self.o(out)
@@ -529,8 +464,7 @@ def _make_t5_lightmax_hook(lightmax_module, thr):
     return _hooked
 
 
-def install_t5_lightmax_hook(model, lightmax_module, thr=None):
-    """Install LightMax on T5Attention (used by MOMENT)."""
+def install_t5_lightmax_hook(model, lightmax_module, thr=None) -> None:
     from transformers.models.t5.modeling_t5 import T5Attention
     hook = _make_t5_lightmax_hook(lightmax_module, thr)
     if hook is not None:
@@ -540,7 +474,6 @@ def install_t5_lightmax_hook(model, lightmax_module, thr=None):
 
 
 def _make_patchtst_lightmax_hook(lightmax_module, thr):
-    """Return a replacement for PatchTSTAttention.forward using LightMax."""
     if lightmax_module is None:
         return None
 
@@ -562,7 +495,7 @@ def _make_patchtst_lightmax_hook(lightmax_module, thr):
         if thr is not None:
             attn_weights = torch.clamp(attn_weights, -thr, thr)
         attn_weights = lightmax_module(attn_weights)
-        attn_weights = attn_weights.to(value_states.dtype)  # ensure matching dtypes for matmul
+        attn_weights = attn_weights.to(value_states.dtype)
         attn_weights = torch.nn.functional.dropout(
             attn_weights, p=0.0 if not self.training else self.dropout, training=self.training,
         )
@@ -574,8 +507,7 @@ def _make_patchtst_lightmax_hook(lightmax_module, thr):
     return _patched_forward
 
 
-def install_patchtst_lightmax_hook(model, lightmax_module, thr=None):
-    """Install LightMax on PatchTSTAttention (used by PatchTSTForPrediction)."""
+def install_patchtst_lightmax_hook(model, lightmax_module, thr=None) -> None:
     if lightmax_module is None:
         return
     from transformers.models.patchtst.modeling_patchtst import PatchTSTAttention
@@ -585,26 +517,22 @@ def install_patchtst_lightmax_hook(model, lightmax_module, thr=None):
             module.forward = patched_fn.__get__(module, PatchTSTAttention)
 
 
-def install_modernbert_lightmax_hook(model, lightmax_module, thr=None):
-    """Replace eager_attention_forward softmax with LightMax in ModernBERT (attention only)."""
+def install_modernbert_lightmax_hook(model, lightmax_module, thr=None) -> None:
     if lightmax_module is None:
         return
     import transformers.models.modernbert.modeling_modernbert as modernbert_module
     modernbert_module.eager_attention_forward = _make_eager_lightmax_hook(lightmax_module, thr)
 
 
-def install_wav2vec2_lightmax_hook(model, lightmax_module, thr=None):
-    """Replace eager_attention_forward softmax with LightMax in wav2vec2."""
+def install_wav2vec2_lightmax_hook(model, lightmax_module, thr=None) -> None:
     if lightmax_module is None:
         return
     import transformers.models.wav2vec2.modeling_wav2vec2 as w2v_module
     w2v_module.eager_attention_forward = _make_eager_lightmax_hook(lightmax_module, thr)
 
 
-def install_swin_lightmax_hook(model, lightmax_module, thr=None):
-    """Replace eager_attention_forward softmax with LightMax in HuggingFace Swin."""
+def install_swin_lightmax_hook(model, lightmax_module, thr=None) -> None:
     if lightmax_module is None:
         return
     import transformers.models.swin.modeling_swin as swin_module
     swin_module.eager_attention_forward = _make_eager_lightmax_hook(lightmax_module, thr)
-

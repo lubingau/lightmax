@@ -14,10 +14,11 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
-# ---------------- Argument parser ----------------
+
 parser = argparse.ArgumentParser(
     description="Create LaTeX comparison table(s) for LightMax methods across all tasks."
 )
@@ -82,7 +83,6 @@ _TASK_CONFIG = {
 
 
 def _short_model(model_name: str) -> str:
-    """Shorten model name via _NAME_MAP or fallback stripping."""
     if model_name in _NAME_MAP:
         return _NAME_MAP[model_name]
     s = model_name
@@ -93,7 +93,6 @@ def _short_model(model_name: str) -> str:
 
 
 def _parse_task_from_filename(fname: str) -> str:
-    """Extract task prefix from a filename like ``eval_image_lightmax_sat16_bw8_ks6.csv``."""
     for prefix in _TASK_CONFIG:
         if fname.startswith(prefix):
             return prefix
@@ -105,13 +104,6 @@ def _build_table_df(input_dir: Path, ceiling: float, in_bw: int, out_bw: int,
                    k_bits: int, s_bits: int,
                    lightmax_pattern: str = "*_lightmax*.csv",
                    sat_pattern: str = "*_saturations.csv") -> pd.DataFrame:
-    """Read baseline from saturations files and LightMax from lightmax files,
-    merge into a single table with columns:
-    ``Task``, ``Model``, ``Baseline``, ``LightMax``, ``Diff``.
-    """
-    # ------------------------------------------------------------------
-    # 1. Baseline from pattern-matched saturations CSV files
-    # ------------------------------------------------------------------
     sat_files = sorted(input_dir.glob(sat_pattern))
     baseline_rows = []
     for fpath in sat_files:
@@ -120,7 +112,6 @@ def _build_table_df(input_dir: Path, ceiling: float, in_bw: int, out_bw: int,
         df = pd.read_csv(fpath)
         df["task"] = task_name
         df["_metric_col"] = metric_col
-        # Keep only the "true" baseline: original softmax with NaN ceiling
         bl = df[df["softmax_type"] == "original"].copy()
         bl["ceiling"] = pd.to_numeric(bl["ceiling"], errors="coerce")
         bl = bl[bl["ceiling"].isna()]
@@ -135,9 +126,6 @@ def _build_table_df(input_dir: Path, ceiling: float, in_bw: int, out_bw: int,
         subset=["task", "model"], keep="first"
     )
 
-    # ------------------------------------------------------------------
-    # 2. LightMax from pattern-matched LightMax CSV files
-    # ------------------------------------------------------------------
     lightmax_files = sorted(input_dir.glob(lightmax_pattern))
     lightmax_rows = []
     for fpath in lightmax_files:
@@ -148,7 +136,6 @@ def _build_table_df(input_dir: Path, ceiling: float, in_bw: int, out_bw: int,
         df["_metric_col"] = metric_col
         for c in ["ceiling", "in_bw", "out_bw", "k_bits", "s_bits"]:
             df[c] = pd.to_numeric(df[c], errors="coerce")
-        # Filter for lightmax matching the requested config
         mask = (
             (df["softmax_type"] == "lightmax") &
             (df["ceiling"].round(6) == float(ceiling)) &
@@ -173,16 +160,12 @@ def _build_table_df(input_dir: Path, ceiling: float, in_bw: int, out_bw: int,
         print("Warning: no baseline or LightMax data found.")
         return pd.DataFrame()
 
-    # ------------------------------------------------------------------
-    # 3. Merge and compute diff
-    # ------------------------------------------------------------------
     merged = baseline_df.merge(
         lightmax_df, on=["task", "model"],
         suffixes=("_baseline", "_lightmax"),
         how="inner",
     )
 
-    # Build final table with formatted values
     table_rows = []
     for _, row in merged.iterrows():
         task = row["task"]
@@ -198,7 +181,6 @@ def _build_table_df(input_dir: Path, ceiling: float, in_bw: int, out_bw: int,
         })
 
     result = pd.DataFrame(table_rows)
-    # Sort by task then by model (within task using size order)
     task_order = [t for t, _ in _TASK_CONFIG.values()]
     result["_task_order"] = result["Task"].apply(
         lambda t: task_order.index(t) if t in task_order else 99
@@ -207,93 +189,7 @@ def _build_table_df(input_dir: Path, ceiling: float, in_bw: int, out_bw: int,
     return result.reset_index(drop=True)
 
 
-def _generate_latex_table(df: pd.DataFrame, caption: str, label: str,
-                          precision_map: dict, include_task: bool = False) -> str:
-    """Generate a LaTeX table string from DataFrame using pandas ``to_latex``.
-
-    Parameters
-    ----------
-    df : DataFrame with columns Model, Baseline, LightMax, Diff
-        (plus Task if include_task=True)
-    """
-    if df.empty:
-        return "% (empty table -- no data)"
-
-    display = df.copy()
-    is_combined = include_task  # combined table has a Task column
-
-    # Identify the value columns
-    val_cols = ["Baseline", "LightMax"]
-
-    # Format numeric columns as plain strings (no LaTeX escaping issues)
-    for col in val_cols:
-        display[col] = display[col].apply(
-            lambda x: f"{float(x):.{precision_map.get(col, 4)}f}" if pd.notna(x) else "--"
-        )
-
-    # Format Diff with LaTeX: {\color{black}$\downarrow$ XX.XX} (blank when 0)
-    def _fmt_diff(x):
-        if pd.isna(x):
-            return r"{\color{black}$\downarrow$ --}"
-        val = float(x)
-        if abs(val) == 0.0:
-            return ""
-        dec = precision_map.get("_diff_default", 4)
-        return rf"{{\color{{black}}$\downarrow$ {val:.{dec}f}}}"
-
-    # Determine decimal places for Diff from whichever metric is relevant
-    # We'll store precision in task name for Diff or use a general approach
-    display["Diff"] = display["Diff"].apply(
-        lambda x: rf"{{\color{{black}}$\downarrow$ {float(x):.{precision_map.get('_diff_default', 4)}f}}}"
-        if pd.notna(x) and abs(float(x)) != 0.0 else ("" if pd.notna(x) else r"{\color{black}$\downarrow$ --}")
-    )
-
-    # Build column format
-    if is_combined:
-        col_order = ["Task", "Model", "Baseline", "LightMax", "Diff"]
-        col_fmt = "@{}llrrr@{}"
-    else:
-        col_order = ["Model", "Baseline", "LightMax", "Diff"]
-        col_fmt = "@{}lrrr@{}"
-
-    display = display[col_order]
-
-    # Manually build the LaTeX to have full control over Diff column formatting
-    # Since pandas to_latex with escape=True would escape our LaTeX in Diff,
-    # we build the tabular content manually.
-
-    lines = [
-        r"\begin{table}",
-        r"\centering",
-        r"\small",
-        r"\setlength{\tabcolsep}{4pt}",
-        rf"\caption{{{caption}}}",
-        rf"\label{{{label}}}",
-        rf"\begin{{tabular}}{{{col_fmt}}}",
-        r"\toprule",
-    ]
-
-    # Header row
-    header = " & ".join(col_order) + r" \\"
-    lines.append(header)
-    lines.append(r"\midrule")
-
-    # Data rows
-    for _, row in display.iterrows():
-        cells = []
-        for col in col_order:
-            cells.append(str(row[col]))
-        lines.append("  " + " & ".join(cells) + r" \\")
-
-    lines.append(r"\bottomrule")
-    lines.append(r"\end{tabular}")
-    lines.append(r"\end{table}")
-
-    return "\n".join(lines) + "\n"
-
-
-def _generate_full_document(tables: list) -> str:
-    """Wrap one or more LaTeX tables in a complete ``article`` document."""
+def _generate_full_document(tables: List[str]) -> str:
     parts = [
         r"\documentclass{article}",
         r"\usepackage{booktabs}",
@@ -312,7 +208,6 @@ def _generate_full_document(tables: list) -> str:
 
 
 def _compile_pdf(tex_path: str) -> None:
-    """Run ``pdflatex`` on the given .tex file."""
     out_dir = os.path.dirname(os.path.abspath(tex_path)) or "."
     try:
         result = subprocess.run(
@@ -331,14 +226,12 @@ def _compile_pdf(tex_path: str) -> None:
               file=sys.stderr)
 
 
-# ----------------- Main function -----------------
-def main():
+def main() -> None:
     args = parser.parse_args()
     input_dir = Path(args.input_dir)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Build precision map: task_name -> decimal places
     precision_map = {
         "Classification": args.decimals_classification,
         "Forecasting":    args.decimals_forecasting,
@@ -346,7 +239,6 @@ def main():
         "Audio":          args.decimals_audio,
     }
 
-    # Build the combined table data
     combined_df = _build_table_df(
         input_dir, args.ceiling, args.in_bw, args.out_bw,
         args.k_bits, args.s_bits,
@@ -357,21 +249,11 @@ def main():
         print("No data found.")
         return
 
-    # --- 1. Combined table (all tasks together) ---
     caption_main = (
         r"\textbf{LightMax Comparison} --- "
         f"ceiling={args.ceiling}, in-bw={args.in_bw}, out-bw={args.out_bw}, "
         f"k-bits={args.k_bits}, s-bits={args.s_bits}"
     )
-
-    # We adjust precision_map to have per-task Diff precision
-    # The Diff column uses the precision of the task's metric.
-    # We propagate task info via a helper column that we drop before display.
-    # Instead, we'll handle formatting in _generate_latex_table by passing
-    # the per-task precision info through.
-
-    # For the combined table, each row has a Task column. We'll pre-process
-    # Diff per-row using per-task precision.
 
     def _apply_precision(row):
         task = row["Task"]
@@ -386,7 +268,6 @@ def main():
                 row["Diff"] = rf"{{\color{{black}}{arrow} {diff_f:.{dec}f}}}"
         else:
             row["Diff"] = r"{\color{black}$\downarrow$ --}"
-        # Also format Baseline and LightMax
         for col in ["Baseline", "LightMax"]:
             v = row[col]
             if pd.notna(v):
@@ -399,7 +280,6 @@ def main():
     combined_cols = ["Task", "Model", "Baseline", "LightMax", "Diff"]
     combined_display = combined_display[combined_cols]
 
-    # Build combined table LaTeX
     col_fmt_combined = "@{}llccc@{}"
     lines = [
         r"\begin{table}",
@@ -420,14 +300,12 @@ def main():
     lines.append(r"\end{table}")
     main_table = "\n".join(lines) + "\n"
 
-    # --- 2. Per-task tables (only if --small-tables) ---
     per_task_tables = []
     if args.small_tables:
         for task_display in [t for t, _ in _TASK_CONFIG.values()]:
             task_df = combined_df[combined_df["Task"] == task_display].copy()
             if task_df.empty:
                 continue
-            # Format with task-specific precision
             dec = precision_map.get(task_display, 4)
             task_display_cols = ["Model", "Baseline", "LightMax", "Diff"]
             task_rows = []
@@ -478,7 +356,6 @@ def main():
             lines.append(r"\end{table}")
             per_task_tables.append("\n".join(lines) + "\n")
 
-    # --- 3. Write output ---
     all_tables = [main_table] + per_task_tables
     full_doc = _generate_full_document(all_tables)
 

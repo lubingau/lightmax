@@ -1,3 +1,10 @@
+--------------------------------------------------------------------------------
+-- Description: Testbench for MultiLightmaxWrapper with random data injection.
+-- Type: Testbench
+-- Author: Anonymous
+-- License: MIT
+--------------------------------------------------------------------------------
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -60,22 +67,22 @@ begin
             m_axis_tready => m_axis_tready
         );
 
-    capture_proc : process(clk)
+    capture_proc : process(clk, rst_n)
         file fout : text open write_mode is "sim/sim_output_multi.txt";
         variable line_out : line;
     begin
-        if rising_edge(clk) then
-            if rst_n = '1' then
-                if m_axis_tvalid = '1' and m_axis_tready = '1' then
-                    if capture_count < NUM_VALUES then
-                        write(line_out, now);
-                        for i in 0 to PARALLEL_COUNT-1 loop
-                            write(line_out, string'("  "));
-                            write(line_out, to_integer(unsigned(m_axis_tdata((i+1)*DATA_INPUT-1 downto i*DATA_INPUT))));
-                        end loop;
-                        writeline(fout, line_out);
-                        capture_count <= capture_count + 1;
-                    end if;
+        if rst_n = '0' then
+            capture_count <= 0;
+        elsif rising_edge(clk) then
+            if m_axis_tvalid = '1' and m_axis_tready = '1' then
+                if capture_count < NUM_VALUES then
+                    write(line_out, now);
+                    for i in 0 to PARALLEL_COUNT-1 loop
+                        write(line_out, string'("  "));
+                        write(line_out, to_integer(unsigned(m_axis_tdata((i+1)*DATA_INPUT-1 downto i*DATA_INPUT))));
+                    end loop;
+                    writeline(fout, line_out);
+                    capture_count <= capture_count + 1;
                 end if;
             end if;
         end if;

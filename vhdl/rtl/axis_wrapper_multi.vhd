@@ -1,13 +1,9 @@
-----------------------------------------------------------------------------------
--- AxisWrapperMulti
--- Wraps MultiLightmaxWrapper (P-unit) into a full AXI4-Stream.
--- s_axis_tkeep is ignored (internally forced to '1').
--- s_axis_tlast is not needed: end of input is detected by the core via
---   the falling edge of in_valid.
--- m_axis_tkeep is driven to '1'.
--- m_axis_tlast is generated from a 1-stage output pipeline that asserts
---   tlast on the cycle after out_valid goes low.
-----------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Description: Wraps MultiLightmaxWrapper (P-unit) into a full AXI4-Stream.
+-- Type: Behavioral
+-- Author: Anonymous
+-- License: MIT
+--------------------------------------------------------------------------------
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -42,7 +38,7 @@ entity AxisWrapperMulti is
     );
 end AxisWrapperMulti;
 
-architecture rtl of AxisWrapperMulti is
+architecture Rtl of AxisWrapperMulti is
 
     constant DATA_BUS_WIDTH : integer := PARALLEL_COUNT * DATA_INPUT;
 
@@ -115,4 +111,4 @@ begin
     m_axis_tkeep  <= (others => '1');
     m_axis_tlast  <= pipe_valid and not core_out_valid;
 
-end rtl;
+end Rtl;

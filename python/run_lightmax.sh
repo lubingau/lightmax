@@ -37,7 +37,7 @@ echo "Saturation: $SATURATION, in_bw=$IN_BW, out_bw=$OUT_BW, k_bits=$K_BITS, s_b
 echo
 
 # ---- Image ----
-$DRY /home/lubin/anaconda3/bin/python "$BASE/eval_image.py" \
+$DRY python3 "$BASE/eval_image.py" \
     --saturation $SATURATION \
     --use-lightmax --no-baseline \
     --in-bw $IN_BW --out-bw $OUT_BW --k-bits $K_BITS --s-bits $S_BITS \
@@ -46,7 +46,7 @@ $DRY /home/lubin/anaconda3/bin/python "$BASE/eval_image.py" \
     --output-dir "$BASE/panda"
 
 # ---- Language ----
-$DRY /home/lubin/anaconda3/bin/python "$BASE/eval_language.py" \
+$DRY python3 "$BASE/eval_language.py" \
     --saturation $SATURATION \
     --use-lightmax --no-baseline \
     --in-bw $IN_BW --out-bw $OUT_BW --k-bits $K_BITS --s-bits $S_BITS \
@@ -55,7 +55,7 @@ $DRY /home/lubin/anaconda3/bin/python "$BASE/eval_language.py" \
     --output-dir "$BASE/panda"
 
 # ---- Speech ----
-$DRY /home/lubin/anaconda3/bin/python "$BASE/eval_speech.py" \
+$DRY python3 "$BASE/eval_speech.py" \
     --saturation $SATURATION \
     --use-lightmax --no-baseline \
     --in-bw $IN_BW --out-bw $OUT_BW --k-bits $K_BITS --s-bits $S_BITS \
@@ -64,7 +64,7 @@ $DRY /home/lubin/anaconda3/bin/python "$BASE/eval_speech.py" \
     --output-dir "$BASE/panda"
 
 # ---- Time series ----
-$DRY /home/lubin/anaconda3/bin/python "$BASE/eval_time_series.py" \
+$DRY python3 "$BASE/eval_time_series.py" \
     --saturation $SATURATION \
     --use-lightmax --no-baseline \
     --in-bw $IN_BW --out-bw $OUT_BW --k-bits $K_BITS --s-bits $S_BITS \

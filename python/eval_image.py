@@ -10,7 +10,7 @@ Outputs a CSV with columns:
 
 import argparse
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import torch
 import timm
@@ -24,11 +24,10 @@ from utils.attention_hooks import (
 from utils import dataset_config
 
 
-# ---------------- Argument parser ----------------
 parser = argparse.ArgumentParser(
     description="Evaluate attention saturation on ImageNet classification."
 )
-parser.add_argument("--dataset", type=str, default="/media/lubin/Datasets/Imagenet/val",
+parser.add_argument("--dataset", type=str, default=str(dataset_config.IMAGENET_DIR),
                     help="Path to ImageNet validation directory")
 parser.add_argument("--models", type=str, nargs="+", default=[
     "vit_small_patch16_224",
@@ -63,7 +62,7 @@ parser.add_argument("--s-bits", type=int, default=6)
 class _HFImageTransform:
     """Pickable transform wrapping a HuggingFace image processor for single images."""
 
-    def __init__(self, model_name: str, cache_dir: Optional[str] = None):
+    def __init__(self, model_name: str, cache_dir: Optional[str] = None) -> None:
         self.model_name = model_name
         from transformers import AutoImageProcessor
         self.processor = AutoImageProcessor.from_pretrained(model_name, cache_dir=cache_dir)
@@ -75,11 +74,11 @@ class _HFImageTransform:
 class ImageNetDataset:
     """ImageNet validation folder with per-model transform support."""
 
-    def __init__(self, root: str):
-        root = Path(root)
+    def __init__(self, root: str) -> None:
+        self.root = Path(root)
         self.samples: List[tuple] = []
         self.transform = None
-        cls_dirs = sorted([d for d in root.iterdir() if d.is_dir()])
+        cls_dirs = sorted([d for d in self.root.iterdir() if d.is_dir()])
         cls_to_idx = {d.name: i for i, d in enumerate(cls_dirs)}
         for cls_dir in cls_dirs:
             for img_file in sorted(cls_dir.iterdir()):
@@ -89,7 +88,7 @@ class ImageNetDataset:
     def __len__(self) -> int:
         return len(self.samples)
 
-    def set_transform(self, transform) -> None:
+    def set_transform(self, transform: Callable) -> None:
         self.transform = transform
 
     def __getitem__(self, idx: int):
@@ -101,13 +100,11 @@ class ImageNetDataset:
 
 
 def _is_hf_model(name: str) -> bool:
-    """Check if model name looks like a HuggingFace hub path."""
     return "/" in name
 
 
 @torch.no_grad()
 def evaluate(model, loader, device, is_hf=False):
-    """Compute top-1 and top-5 accuracy."""
     top1_correct = 0
     top5_correct = 0
     total = 0
@@ -123,8 +120,7 @@ def evaluate(model, loader, device, is_hf=False):
     return {"top1": 100.0 * top1_correct / total, "top5": 100.0 * top5_correct / total}
 
 
-def run_task(args):
-    """Orchestrate classification evaluation and save CSV."""
+def run_task(args) -> None:
     import os
     os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
     from transformers.utils.logging import disable_progress_bar
@@ -165,7 +161,6 @@ def run_task(args):
         sat_values = args.saturation if args.saturation else [32.0]
         has_lightmax_flag = args.use_lightmax
 
-        # --- 1. Baseline: pure model, no hooks ---
         if not args.no_baseline:
             if is_hf:
                 from transformers import AutoModelForImageClassification
@@ -198,9 +193,7 @@ def run_task(args):
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
-        # --- 2. Per saturation: LightMax / plain softmax ---
         for sat in sat_values:
-            # --- 2a. LightMax ---
             if args.use_lightmax:
                 if is_hf:
                     from transformers import AutoModelForImageClassification
@@ -244,7 +237,6 @@ def run_task(args):
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
 
-            # --- 2b. No LightMax flag set -> plain softmax with saturation hooks ---
             if not has_lightmax_flag:
                 if is_hf:
                     from transformers import AutoModelForImageClassification
@@ -292,8 +284,7 @@ def run_task(args):
     print(f"\nResults saved to {out_path}")
 
 
-# ----------------- Main function -----------------
-def main():
+def main() -> None:
     args = parser.parse_args()
     data_dir = Path(args.dataset)
     if not data_dir.exists():

@@ -12,22 +12,22 @@ for the VHDL hardware simulation pipeline.
 
 import argparse
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
 import timm
 from timm.data import create_transform, resolve_data_config
 from PIL import Image
+from utils import dataset_config
 
 
-# ---------------- Argument parser ----------------
 parser = argparse.ArgumentParser(
     description="Measure LightMax MSE on real attention logits (ImageNet val)."
 )
 parser.add_argument("--model", type=str, default="vit_base_patch16_224",
                     help="ViT model name from timm")
-parser.add_argument("--data-dir", type=str, default="/media/lubin/Datasets/Imagenet/val",
+parser.add_argument("--data-dir", type=str, default=str(dataset_config.IMAGENET_DIR),
                     help="Path to ImageNet validation directory")
 parser.add_argument("--ceiling", type=float, default=24.0,
                     help="Ceiling for LightMax saturation")
@@ -40,7 +40,6 @@ parser.add_argument("--num-samples", type=int, default=10000,
                     help="0 = all samples")
 parser.add_argument("--device", type=str, default="cuda")
 parser.add_argument("--seed", type=int, default=42)
-# Capture / export options
 parser.add_argument("--layer-idx", type=int, default=0,
                     help="Attention layer index to capture logits from")
 parser.add_argument("--query-idx", type=int, default=0,
@@ -52,11 +51,11 @@ parser.add_argument("--head-idx", type=int, default=0,
 class ImageNetDataset:
     """ImageNet validation folder with configurable transform."""
 
-    def __init__(self, root: str):
-        root = Path(root)
+    def __init__(self, root: str) -> None:
+        self.root = Path(root)
         self.samples: List[tuple] = []
-        self.transform = None
-        cls_dirs = sorted([d for d in root.iterdir() if d.is_dir()])
+        self.transform: Optional[Callable] = None
+        cls_dirs = sorted([d for d in self.root.iterdir() if d.is_dir()])
         cls_to_idx = {d.name: i for i, d in enumerate(cls_dirs)}
         for cls_dir in cls_dirs:
             for img_file in sorted(cls_dir.iterdir()):
@@ -66,10 +65,10 @@ class ImageNetDataset:
     def __len__(self) -> int:
         return len(self.samples)
 
-    def set_transform(self, transform) -> None:
+    def set_transform(self, transform: Callable) -> None:
         self.transform = transform
 
-    def __getitem__(self, idx: int):
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int]:
         img_path, label = self.samples[idx]
         img = Image.open(img_path).convert("RGB")
         if self.transform is not None:
@@ -77,30 +76,21 @@ class ImageNetDataset:
         return img, label
 
 
-# ----------------- MSE measurement -----------------
-
 @torch.no_grad()
 def run_and_measure(
-    args,
+    args: argparse.Namespace,
     lightmax_module: nn.Module,
     variant_name: str,
-) -> dict:
-    """Run ViT on ImageNet, compute per-layer MSE of lightmax_module vs torch.softmax.
-
-    Accumulates squared errors on-the-fly per batch — never stores logits.
-    Returns dict with per_layer_mse, avg_mse, num_forward_passes, num_samples.
-    """
+) -> Dict[str, Any]:
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
-    num_layers = 12  # ViT-Base has 12 blocks
+    num_layers = 12
 
     se_accum = [0.0] * num_layers
     count_accum = [0] * num_layers
 
-    # --- Model ---
     model = timm.create_model(args.model, pretrained=True).to(device)
     model.eval()
 
-    # --- Install per-layer hooks that compute MSE immediately ---
     layer_idx = [0]
 
     for module in model.modules():
@@ -139,7 +129,6 @@ def run_and_measure(
 
             module.forward = _make_hooked(module, li)
 
-    # --- Data ---
     transform = create_transform(
         **resolve_data_config({}, model=args.model),
         is_training=False,
@@ -155,7 +144,6 @@ def run_and_measure(
         num_workers=4, pin_memory=True, drop_last=False,
     )
 
-    # --- Run forward pass ---
     num_batches = 0
     for images, _ in loader:
         images = images.to(device)
@@ -164,7 +152,6 @@ def run_and_measure(
         if num_batches % 50 == 0:
             print(f"  [{variant_name}] Processed {num_batches * args.batch_size} images...", flush=True)
 
-    # --- Aggregate ---
     per_layer_mse = [se / max(c, 1) for se, c in zip(se_accum, count_accum)]
     avg_mse = sum(per_layer_mse) / len(per_layer_mse)
 
@@ -181,8 +168,8 @@ def run_and_measure(
     }
 
 
-def run_measurement(args) -> dict:
-    """Orchestrate MSE measurement for LightMax."""
+def run_measurement(args: argparse.Namespace) -> Dict[str, Any]:
+    device = torch.device(args.device if torch.cuda.is_available() else "cpu")
     print(f"Device: {args.device}", flush=True)
     print(f"Model: {args.model}", flush=True)
     print(f"Samples: {args.num_samples if args.num_samples > 0 else 'all (50K)'}", flush=True)
@@ -214,29 +201,15 @@ def run_measurement(args) -> dict:
     return res
 
 
-# ----------------- Logit capture for HW simulation -----------------
-
 @torch.no_grad()
 def capture_and_export_logits(
-    args,
+    args: argparse.Namespace,
     output_path: str,
     layer_idx: int = 0,
     query_idx: int = 0,
     head_idx: int = 0,
     num_queries: int = 1,
 ) -> int:
-    """Capture real pre-softmax attention logits from one layer and export
-    as quantized integers for the VHDL simulation.
-
-    Hooks only the specified layer, runs one batch, extracts one or more query
-    rows from one attention head of the first sample, quantizes to signed in_bw
-    bits, and writes to output_path.
-
-    When num_queries=1: writes 2-column sim_input.txt format (index, value).
-    When num_queries > 1: writes multi-column format (index, unit0, unit1, ...).
-
-    Returns the number of logit values written per parallel unit.
-    """
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
 
     model = timm.create_model(args.model, pretrained=True).to(device)
@@ -282,7 +255,7 @@ def capture_and_export_logits(
                             -(2 ** (in_bw - 1)), (2 ** (in_bw - 1)) - 1
                         ).to(torch.int32)
 
-                        captured[0] = quantized  # shape (n_q, N)
+                        captured[0] = quantized
 
                         if attn_mask is not None:
                             attn = attn + attn_mask
@@ -322,9 +295,9 @@ def capture_and_export_logits(
         break
 
     if captured[0] is None:
-        raise RuntimeError("Hook never triggered — no attention layer matched")
+        raise RuntimeError("Hook never triggered -- no attention layer matched")
 
-    rows = captured[0]  # (num_queries, N_keys)
+    rows = captured[0]
 
     with open(output_path, "w") as f:
         if num_queries == 1:
@@ -346,8 +319,7 @@ def capture_and_export_logits(
     return rows.shape[1]
 
 
-# ----------------- Main function -----------------
-def main():
+def main() -> None:
     args = parser.parse_args()
 
     data_dir = Path(args.data_dir)

@@ -32,7 +32,7 @@ echo "Saturations: $SATURATIONS (with baseline)"
 echo
 
 # ---- Image ----
-$DRY /home/lubin/anaconda3/bin/python "$BASE/eval_image.py" \
+$DRY python3 "$BASE/eval_image.py" \
     --saturation $SATURATIONS \
     --in-bw $IN_BW --out-bw $OUT_BW \
     --num-samples $NUM_SAMPLES \
@@ -40,7 +40,7 @@ $DRY /home/lubin/anaconda3/bin/python "$BASE/eval_image.py" \
     --output-dir "$BASE/panda"
 
 # ---- Language ----
-$DRY /home/lubin/anaconda3/bin/python "$BASE/eval_language.py" \
+$DRY python3 "$BASE/eval_language.py" \
     --saturation $SATURATIONS \
     --in-bw $IN_BW --out-bw $OUT_BW \
     --num-samples $NUM_SAMPLES \
@@ -48,7 +48,7 @@ $DRY /home/lubin/anaconda3/bin/python "$BASE/eval_language.py" \
     --output-dir "$BASE/panda"
 
 # ---- Speech ----
-$DRY /home/lubin/anaconda3/bin/python "$BASE/eval_speech.py" \
+$DRY python3 "$BASE/eval_speech.py" \
     --saturation $SATURATIONS \
     --in-bw $IN_BW --out-bw $OUT_BW \
     --num-samples $NUM_SAMPLES \
@@ -56,7 +56,7 @@ $DRY /home/lubin/anaconda3/bin/python "$BASE/eval_speech.py" \
     --output-dir "$BASE/panda"
 
 # ---- Time series ----
-$DRY /home/lubin/anaconda3/bin/python "$BASE/eval_time_series.py" \
+$DRY python3 "$BASE/eval_time_series.py" \
     --saturation $SATURATIONS \
     --in-bw $IN_BW --out-bw $OUT_BW \
     --num-samples $NUM_SAMPLES \

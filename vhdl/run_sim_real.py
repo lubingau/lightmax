@@ -26,36 +26,34 @@ SIM_DIR = BASE_DIR / "sim"
 
 sys.path.insert(0, str(BASE_DIR.parent / "python"))
 from measure_lightmax_mse import capture_and_export_logits
+from utils import dataset_config
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Run VHDL simulation with real captured attention logits."
-    )
-    # Capture args
-    parser.add_argument("--data-dir", type=str, default="/media/lubin/Datasets/Imagenet/val", help="Path to ImageNet validation directory")
-    parser.add_argument("--model", type=str, default="vit_base_patch16_224", help="ViT model name from timm")
-    parser.add_argument("--layer-idx", type=int, default=0, help="Attention layer index to capture logits from")
-    parser.add_argument("--query-idx", type=int, default=0, help="Query row index (0 = CLS)")
-    parser.add_argument("--head-idx", type=int, default=0, help="Attention head index")
-    # LightMax config (must match VHDL generics)
-    parser.add_argument("--ceiling", type=float, default=24.0)
-    parser.add_argument("--in-bw", type=int, default=8)
-    parser.add_argument("--out-bw", type=int, default=8)
-    parser.add_argument("--k-bits", type=int, default=4)
-    parser.add_argument("--s-bits", type=int, default=6)
-    parser.add_argument("--device", type=str, default="cuda")
-    # Simulation
-    parser.add_argument("--multi", type=int, default=1, help="Number of parallel units (even, >=2 for multi-unit)")
-    parser.add_argument("--random", action="store_true", default=False, help="Pick random layer/query/head indices each run")
-    parser.add_argument("--clean", action="store_true", default=False, help="Recompile all VHDL files")
+parser = argparse.ArgumentParser(
+    description="Run VHDL simulation with real captured attention logits."
+)
+parser.add_argument("--data-dir", type=str, default=str(dataset_config.IMAGENET_DIR), help="Path to ImageNet validation directory")
+parser.add_argument("--model", type=str, default="vit_base_patch16_224", help="ViT model name from timm")
+parser.add_argument("--layer-idx", type=int, default=0, help="Attention layer index to capture logits from")
+parser.add_argument("--query-idx", type=int, default=0, help="Query row index (0 = CLS)")
+parser.add_argument("--head-idx", type=int, default=0, help="Attention head index")
+parser.add_argument("--ceiling", type=float, default=24.0)
+parser.add_argument("--in-bw", type=int, default=8)
+parser.add_argument("--out-bw", type=int, default=8)
+parser.add_argument("--k-bits", type=int, default=4)
+parser.add_argument("--s-bits", type=int, default=6)
+parser.add_argument("--device", type=str, default="cuda")
+parser.add_argument("--multi", type=int, default=1, help="Number of parallel units (even, >=2 for multi-unit)")
+parser.add_argument("--random", action="store_true", default=False, help="Pick random layer/query/head indices each run")
+parser.add_argument("--clean", action="store_true", default=False, help="Recompile all VHDL files")
 
+
+def main() -> None:
     args = parser.parse_args()
 
     os.makedirs(SIM_DIR, exist_ok=True)
     os.chdir(BASE_DIR)
 
-    # ---- Step 1: Capture real logits ----
     print("=" * 60, flush=True)
     print("Step 1: Capturing real attention logits...", flush=True)
     print(f"  model={args.model}, layer={args.layer_idx}, "
@@ -80,9 +78,8 @@ def main():
         head_idx=args.head_idx,
         num_queries=args.multi,
     )
-    print(f"  Captured {n_values} logit values → {input_path}", flush=True)
+    print(f"  Captured {n_values} logit values \u2192 {input_path}", flush=True)
 
-    # ---- Step 2: Compile VHDL ----
     print(flush=True)
     print("Step 2: Compiling VHDL...", flush=True)
 
@@ -117,7 +114,6 @@ def main():
     print(f"  {' '.join(compile_cmd)}", flush=True)
     subprocess.run(compile_cmd, check=True)
 
-    # ---- Step 3: Elaborate ----
     print(flush=True)
     print("Step 3: Elaborating...", flush=True)
     if is_multi:
@@ -127,7 +123,6 @@ def main():
     print(f"  {' '.join(elab_cmd)}", flush=True)
     subprocess.run(elab_cmd, check=True)
 
-    # ---- Step 4: Run simulation ----
     print(flush=True)
     print("Step 4: Running GHDL simulation...", flush=True)
     stop_time = f"{max(10_000, n_values * 200)}ns"
@@ -156,7 +151,6 @@ def main():
     elapsed = time.time() - t0
     print(f"  Simulation finished in {elapsed:.1f}s", flush=True)
 
-    # ---- Step 5: Analyze results (forward LightMax config) ----
     print(flush=True)
     print("Step 5: Analyzing results...", flush=True)
     sys.argv = [

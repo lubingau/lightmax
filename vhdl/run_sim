@@ -18,4 +18,4 @@ ghdl -e --std=02 -frelaxed Tb_Lightmax
 
 ghdl -r --std=02 -frelaxed Tb_Lightmax --vcd=sim/output.vcd --stop-time=10us
 
-/home/lubin/anaconda3/envs/DEE/bin/python3 analyze_results.py
+python3 analyze_results.py

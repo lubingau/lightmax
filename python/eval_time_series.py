@@ -10,6 +10,7 @@ Outputs a CSV with columns:
 
 import argparse
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import numpy as np
@@ -18,11 +19,11 @@ from utils.attention_hooks import progress_bar, install_patchtst_saturation_hook
 from utils.patchtst_utils import build_patchtst_config
 from utils import dataset_config
 
-# ---------------- Argument parser ----------------
+
 parser = argparse.ArgumentParser(
     description="Evaluate attention saturation on forecasting datasets (PatchTST)."
 )
-parser.add_argument("--dataset", type=str, default="/media/lubin/Datasets/Forecasting",
+parser.add_argument("--dataset", type=str, default=str(dataset_config.FORECASTING_DIR),
                     help="Directory containing forecasting CSV files")
 parser.add_argument("--models", type=str, nargs="+", default=[
     "ibm-research/patchtst-etth1-pretrain",
@@ -59,8 +60,7 @@ DATASETS = [("ETTh1", "ETTh1"), ("ETTh2", "ETTh2"),
             ("ETTm1", "ETTm1"), ("ETTm2", "ETTm2"), ("weather", "Weather")]
 
 
-def load_forecasting_data(file_path: str):
-    """Load a CSV, split 80/20 train/test by row."""
+def load_forecasting_data(file_path: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     df = pd.read_csv(file_path, parse_dates=["date"])
     n = len(df)
     split = int(n * 0.8)
@@ -69,8 +69,7 @@ def load_forecasting_data(file_path: str):
     return train_df, test_df
 
 
-def standardize(train_df: pd.DataFrame, test_df: pd.DataFrame):
-    """Standardize with train-split statistics per channel."""
+def standardize(train_df: pd.DataFrame, test_df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     val_cols = [c for c in train_df.columns if c != "date"]
     mean = train_df[val_cols].mean().values.astype(np.float32)
     std = train_df[val_cols].std().values.astype(np.float32)
@@ -81,21 +80,19 @@ def standardize(train_df: pd.DataFrame, test_df: pd.DataFrame):
 
 
 def create_forecast_data(data: np.ndarray, seq_len: int, forecast_horizon: int,
-                         stride: int | None = None):
-    """Create (input, target) pairs for forecasting with the given window stride."""
+                         stride: int | None = None) -> Tuple[np.ndarray, np.ndarray]:
     if stride is None:
         stride = seq_len
     inputs, targets = [], []
     total = seq_len + forecast_horizon
     for start in range(0, len(data) - total + 1, stride):
-        inputs.append(data[start:start + seq_len].T)  # [C, seq_len]
-        targets.append(data[start + seq_len:start + total].T)  # [C, horizon]
+        inputs.append(data[start:start + seq_len].T)
+        targets.append(data[start + seq_len:start + total].T)
     return np.stack(inputs), np.stack(targets)
 
 
 def load_datasets(data_dir: str, seq_len: int, forecast_horizon: int, rng_seed: int,
-                  eval_stride: int = 1):
-    """Load all forecasting datasets, returning dict of {stem: {label, inputs, targets}}."""
+                  eval_stride: int = 1) -> Dict[str, Dict[str, Any]]:
     data_dir = Path(data_dir)
     dataset_info = {}
     for short, label in DATASETS:
@@ -117,24 +114,22 @@ def load_datasets(data_dir: str, seq_len: int, forecast_horizon: int, rng_seed: 
 
 @torch.no_grad()
 def evaluate(model, inputs, targets, batch_size, device):
-    """Compute MAE and MSE over forecast horizon."""
     mae_total = 0.0
     mse_total = 0.0
     n = 0
     for i in progress_bar(range(0, len(inputs), batch_size)):
         batch_x = torch.from_numpy(inputs[i:i + batch_size]).to(device).half()
         batch_y = torch.from_numpy(targets[i:i + batch_size]).to(device)
-        batch_x = batch_x.transpose(1, 2)  # [B, C, seq_len] -> [B, seq_len, C] for PatchTST
+        batch_x = batch_x.transpose(1, 2)
         outputs = model(past_values=batch_x).prediction_outputs
-        outputs = outputs.transpose(1, 2)  # [B, horizon, C] -> [B, C, horizon] to match targets
+        outputs = outputs.transpose(1, 2)
         mae_total += (outputs - batch_y).abs().sum().item()
         mse_total += (outputs - batch_y).pow(2).sum().item()
         n += batch_y.numel()
     return {"MAE": mae_total / n, "MSE": mse_total / n}
 
 
-def run_task(args):
-    """Orchestrate forecasting evaluation and save CSV."""
+def run_task(args) -> None:
     import os
     os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
     from transformers.utils.logging import disable_progress_bar
@@ -184,7 +179,6 @@ def run_task(args):
             sat_values = args.saturation if args.saturation else [32.0]
             has_lightmax_flag = args.use_lightmax
 
-            # --- 1. Baseline: pure model, no hooks ---
             if not args.no_baseline:
                 model = PatchTSTForPrediction(config=model_config)
                 model.load_state_dict(
@@ -219,9 +213,7 @@ def run_task(args):
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
 
-            # --- 2. Per saturation: LightMax / plain softmax ---
             for sat in sat_values:
-                # --- 2a. LightMax ---
                 if args.use_lightmax:
                     model = PatchTSTForPrediction(config=model_config)
                     model.load_state_dict(
@@ -264,7 +256,6 @@ def run_task(args):
                     if torch.cuda.is_available():
                         torch.cuda.empty_cache()
 
-                # --- 2b. No LightMax flag set -> plain softmax with saturation hooks ---
                 if not has_lightmax_flag:
                     model = PatchTSTForPrediction(config=model_config)
                     model.load_state_dict(
@@ -312,8 +303,7 @@ def run_task(args):
         print(f"\nResults saved to {out_path}")
 
 
-# ----------------- Main function -----------------
-def main():
+def main() -> None:
     args = parser.parse_args()
     run_task(args)
 

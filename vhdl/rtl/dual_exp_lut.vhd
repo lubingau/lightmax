@@ -1,3 +1,10 @@
+--------------------------------------------------------------------------------
+-- Description: Dual-port registered ROM initialized with precomputed exponential decay values.
+-- Type: Behavioral
+-- Author: Anonymous
+-- License: MIT
+--------------------------------------------------------------------------------
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;

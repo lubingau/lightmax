@@ -1,13 +1,9 @@
-----------------------------------------------------------------------------------
--- AxisWrapper
--- Wraps LightmaxWrapper (single-unit) into a full AXI4-Stream.
--- s_axis_tkeep is ignored (internally forced to '1').
--- s_axis_tlast is not needed: end of input is detected by the core via
---   the falling edge of in_valid.
--- m_axis_tkeep is driven to '1'.
--- m_axis_tlast is generated from a 1-stage output pipeline that asserts
---   tlast on the cycle after out_valid goes low.
-----------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Description: Wraps LightmaxWrapper (single-unit) into a full AXI4-Stream.
+-- Type: Behavioral
+-- Author: Anonymous
+-- License: MIT
+--------------------------------------------------------------------------------
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -41,7 +37,7 @@ entity AxisWrapper is
     );
 end AxisWrapper;
 
-architecture rtl of AxisWrapper is
+architecture Rtl of AxisWrapper is
 
     signal core_in_valid : std_logic;
     signal core_in_ready : std_logic;
@@ -111,4 +107,4 @@ begin
     m_axis_tkeep  <= (others => '1');
     m_axis_tlast  <= pipe_valid and not core_out_valid;
 
-end rtl;
+end Rtl;
